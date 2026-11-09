@@ -14,6 +14,13 @@ import type {
 import type { PlanningStore, StudyPreferences } from "./planning.ts";
 import { generateWeeklyPlan, startOfWeek } from "./planner.ts";
 import { hashPassword, verifyPassword } from "./password.ts";
+import type {
+  QuestionSource,
+  QuestionStatus,
+  QuestionStore,
+  StudyQuestionInput,
+} from "./questions.ts";
+import { validQuestionStatuses } from "./questions.ts";
 import { STUDY_MATRIX } from "./study-matrix.ts";
 import type { UserStore } from "./users.ts";
 
@@ -25,6 +32,7 @@ interface AppOptions {
   userStore: UserStore;
   contentStore: ContentStore;
   planningStore: PlanningStore;
+  questionStore: QuestionStore;
   authRateLimitMax?: number;
   trustProxy?: boolean | string | string[];
 }
@@ -91,6 +99,17 @@ interface PlanItemBody {
   plannedDate: string;
 }
 
+interface QuestionBody {
+  topicId: string;
+  statement: string;
+  options: string[];
+  correctOption: number;
+  explanation?: string;
+  source: QuestionSource;
+  status?: QuestionStatus;
+  statusNote?: string;
+}
+
 interface SessionTokenPayload {
   sub: string;
   email: string;
@@ -129,6 +148,13 @@ const materialParamsSchema = {
   required: ["materialId"],
   additionalProperties: false,
   properties: { materialId: { type: "string", minLength: 1, maxLength: 64 } },
+} as const;
+
+const questionParamsSchema = {
+  type: "object",
+  required: ["questionId"],
+  additionalProperties: false,
+  properties: { questionId: { type: "string", minLength: 1, maxLength: 64 } },
 } as const;
 
 const studyStatuses = [
@@ -450,6 +476,97 @@ export async function buildApp(options: AppOptions) {
     "/api/content",
     { preHandler: requireAuthentication },
     async (request) => options.contentStore.listContent(request.user.sub),
+  );
+
+  app.get(
+    "/api/questions",
+    { preHandler: requireAuthentication },
+    async (request) => options.questionStore.listQuestions(request.user.sub),
+  );
+
+  app.post<{ Body: QuestionBody }>(
+    "/api/questions",
+    {
+      preHandler: requireAuthentication,
+      schema: { body: questionBodySchema() },
+    },
+    async (request, reply) => {
+      const input = questionInput(request.body);
+      const validationError = validateQuestion(input);
+      if (validationError) {
+        return reply.code(400).send({ error: validationError });
+      }
+
+      const content = await options.contentStore.listContent(request.user.sub);
+      const topic = content.topics.find((item) => item.id === input.topicId);
+      if (!topic) {
+        return reply.code(404).send({
+          error: "O tópico informado não pertence à sua conta.",
+        });
+      }
+
+      const question = await options.questionStore.createQuestion(
+        request.user.sub,
+        topic.subjectId,
+        input,
+      );
+      return reply.code(201).send(question);
+    },
+  );
+
+  app.patch<{ Params: { questionId: string }; Body: QuestionBody }>(
+    "/api/questions/:questionId",
+    {
+      preHandler: requireAuthentication,
+      schema: {
+        params: questionParamsSchema,
+        body: questionBodySchema(),
+      },
+    },
+    async (request, reply) => {
+      const input = questionInput(request.body);
+      const validationError = validateQuestion(input);
+      if (validationError) {
+        return reply.code(400).send({ error: validationError });
+      }
+
+      const content = await options.contentStore.listContent(request.user.sub);
+      const topic = content.topics.find((item) => item.id === input.topicId);
+      if (!topic) {
+        return reply.code(404).send({
+          error: "O tópico informado não pertence à sua conta.",
+        });
+      }
+
+      const question = await options.questionStore.updateQuestion(
+        request.user.sub,
+        request.params.questionId,
+        topic.subjectId,
+        input,
+      );
+      if (!question) {
+        return reply.code(404).send({ error: "Questão não encontrada." });
+      }
+      return question;
+    },
+  );
+
+  app.delete<{ Params: { questionId: string } }>(
+    "/api/questions/:questionId",
+    {
+      preHandler: requireAuthentication,
+      schema: { params: questionParamsSchema },
+    },
+    async (request, reply) => {
+      const deleted = await options.questionStore.deleteQuestion(
+        request.user.sub,
+        request.params.questionId,
+      );
+      if (!deleted) {
+        return reply.code(404).send({ error: "Questão não encontrada." });
+      }
+      return { deleted: true };
+    },
   );
 
   app.post(
@@ -877,6 +994,10 @@ export async function buildApp(options: AppOptions) {
       if (!result) {
         return reply.code(404).send({ error: "Disciplina não encontrada." });
       }
+      await options.questionStore.deleteBySubject(
+        request.user.sub,
+        request.params.subjectId,
+      );
       return { deleted: true, ...result };
     },
   );
@@ -1002,6 +1123,10 @@ export async function buildApp(options: AppOptions) {
       if (!result) {
         return reply.code(404).send({ error: "Tópico não encontrado." });
       }
+      await options.questionStore.deleteByTopic(
+        request.user.sub,
+        request.params.topicId,
+      );
       return { deleted: true, ...result };
     },
   );
@@ -1117,6 +1242,99 @@ function validateMaterial(input: MaterialInput): string | null {
   }
   if (input.url && !validHttpUrl(input.url)) {
     return "O link precisa ser um endereço HTTP ou HTTPS válido.";
+  }
+  return null;
+}
+
+function questionBodySchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["topicId", "statement", "options", "correctOption", "source"],
+    properties: {
+      topicId: { type: "string", minLength: 1, maxLength: 64 },
+      statement: { type: "string", minLength: 1, maxLength: 20_000 },
+      options: {
+        type: "array",
+        minItems: 2,
+        maxItems: 6,
+        items: { type: "string", minLength: 1, maxLength: 2000 },
+      },
+      correctOption: { type: "integer", minimum: 0, maximum: 5 },
+      explanation: { type: "string", maxLength: 10_000 },
+      source: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "url"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          url: { type: "string", minLength: 1, maxLength: 2048 },
+          exam: { type: "string", maxLength: 200 },
+          board: { type: "string", maxLength: 120 },
+          role: { type: "string", maxLength: 160 },
+          year: {
+            anyOf: [
+              { type: "null" },
+              { type: "integer", minimum: 1900, maximum: 2200 },
+            ],
+          },
+          number: { type: "string", maxLength: 32 },
+        },
+      },
+      status: { type: "string", enum: validQuestionStatuses },
+      statusNote: { type: "string", maxLength: 1000 },
+    },
+  } as const;
+}
+
+function questionInput(body: QuestionBody): StudyQuestionInput {
+  return {
+    topicId: body.topicId.trim(),
+    statement: body.statement.trim(),
+    options: body.options.map((option) => option.trim()),
+    correctOption: body.correctOption,
+    explanation: body.explanation?.trim() ?? "",
+    source: {
+      name: body.source.name.trim(),
+      url: body.source.url.trim(),
+      exam: body.source.exam?.trim() ?? "",
+      board: body.source.board?.trim() ?? "",
+      role: body.source.role?.trim() ?? "",
+      year: body.source.year ?? null,
+      number: body.source.number?.trim() ?? "",
+    },
+    status: body.status ?? "active",
+    statusNote: body.statusNote?.trim() ?? "",
+  };
+}
+
+function validateQuestion(input: StudyQuestionInput): string | null {
+  if (!input.statement) return "Informe o enunciado da questão.";
+  if (
+    input.options.length < 2 ||
+    input.options.some((option) => option.length === 0)
+  ) {
+    return "Informe pelo menos duas alternativas e preencha todas.";
+  }
+  if (
+    new Set(input.options.map((option) => normalizeText(option))).size !==
+    input.options.length
+  ) {
+    return "As alternativas não podem ser repetidas.";
+  }
+  if (
+    !Number.isInteger(input.correctOption) ||
+    input.correctOption < 0 ||
+    input.correctOption >= input.options.length
+  ) {
+    return "Selecione uma alternativa correta válida.";
+  }
+  if (!input.source.name) return "Informe a fonte da questão.";
+  if (!validHttpUrl(input.source.url)) {
+    return "A fonte precisa de um endereço HTTP ou HTTPS válido.";
+  }
+  if (!validQuestionStatuses.includes(input.status)) {
+    return "Selecione uma situação válida para a questão.";
   }
   return null;
 }

@@ -3,6 +3,7 @@ import { after, before, describe, it } from "node:test";
 import { buildApp } from "../src/app.ts";
 import { MemoryContentStore } from "./memory-content-store.ts";
 import { MemoryPlanningStore } from "./memory-planning-store.ts";
+import { MemoryQuestionStore } from "./memory-question-store.ts";
 import type { User, UserStore } from "../src/users.ts";
 
 const webOrigin = "http://localhost:5173";
@@ -39,6 +40,7 @@ class MemoryUserStore implements UserStore {
 const users = new MemoryUserStore();
 const content = new MemoryContentStore();
 const planning = new MemoryPlanningStore();
+const questionStore = new MemoryQuestionStore();
 const app = await buildApp({
   webOrigin,
   jwtSecret: "a-test-secret-that-is-long-enough-for-hs256",
@@ -47,6 +49,7 @@ const app = await buildApp({
   userStore: users,
   contentStore: content,
   planningStore: planning,
+  questionStore,
 });
 const contentApp = await buildApp({
   webOrigin,
@@ -56,6 +59,7 @@ const contentApp = await buildApp({
   userStore: users,
   contentStore: content,
   planningStore: planning,
+  questionStore,
 });
 
 describe("API fundamentals", () => {
@@ -215,6 +219,7 @@ describe("API fundamentals", () => {
       userStore: new MemoryUserStore(),
       contentStore: new MemoryContentStore(),
       planningStore: new MemoryPlanningStore(),
+      questionStore: new MemoryQuestionStore(),
     });
     await secureApp.ready();
     try {
@@ -312,6 +317,7 @@ describe("API fundamentals", () => {
       authRateLimitMax: 1,
       userStore: new MemoryUserStore(),
       contentStore: new MemoryContentStore(),
+      questionStore: new MemoryQuestionStore(),
     });
     await limitedApp.ready();
 
@@ -426,6 +432,77 @@ describe("study content API", () => {
     });
     assert.equal(createdMaterial.statusCode, 201);
 
+    const createdQuestion = await contentApp.inject({
+      method: "POST",
+      url: "/api/questions",
+      headers: ownerHeaders,
+      payload: {
+        topicId: topic.id,
+        statement: "Qual princípio exige atuação conforme a lei?",
+        options: ["Legalidade", "Publicidade"],
+        correctOption: 0,
+        explanation:
+          "A Administração Pública se submete ao princípio da legalidade.",
+        source: {
+          name: "QConcursos",
+          url: "https://www.qconcursos.com/questoes-de-concursos/questoes/1",
+          exam: "Concurso de teste",
+          board: "Banca de teste",
+          role: "Técnico de TI",
+          year: 2024,
+          number: "1",
+        },
+      },
+    });
+    assert.equal(createdQuestion.statusCode, 201);
+    const question = createdQuestion.json<{
+      id: string;
+      correctOption: number;
+      source: { name: string };
+    }>();
+    assert.equal(question.correctOption, 0);
+    assert.equal(question.source.name, "QConcursos");
+
+    const invalidQuestion = await contentApp.inject({
+      method: "POST",
+      url: "/api/questions",
+      headers: ownerHeaders,
+      payload: {
+        topicId: topic.id,
+        statement: "Questão sem fonte segura",
+        options: ["A", "B"],
+        correctOption: 1,
+        source: { name: "Fonte inválida", url: "javascript:alert(1)" },
+      },
+    });
+    assert.equal(invalidQuestion.statusCode, 400);
+
+    const updatedQuestion = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/questions/${question.id}`,
+      headers: ownerHeaders,
+      payload: {
+        topicId: topic.id,
+        statement: "Qual princípio exige atuação conforme a lei?",
+        options: ["Legalidade", "Publicidade"],
+        correctOption: 0,
+        explanation: "Explicação revisada.",
+        source: {
+          name: "QConcursos",
+          url: "https://www.qconcursos.com/questoes-de-concursos/questoes/1",
+          exam: "Concurso de teste",
+          board: "Banca de teste",
+          role: "Técnico de TI",
+          year: 2024,
+          number: "1",
+        },
+        status: "outdated",
+        statusNote: "Referência legal precisa de revisão.",
+      },
+    });
+    assert.equal(updatedQuestion.statusCode, 200);
+    assert.equal(updatedQuestion.json<{ status: string }>().status, "outdated");
+
     const unsafeMaterial = await contentApp.inject({
       method: "POST",
       url: `/api/subjects/${subject.id}/materials`,
@@ -450,6 +527,12 @@ describe("study content API", () => {
       topics: [],
       materials: [],
     });
+    const otherQuestions = await contentApp.inject({
+      method: "GET",
+      url: "/api/questions",
+      headers: otherHeaders,
+    });
+    assert.deepEqual(otherQuestions.json(), []);
     const crossAccountUpdate = await contentApp.inject({
       method: "PATCH",
       url: `/api/subjects/${subject.id}`,
@@ -500,6 +583,12 @@ describe("study content API", () => {
       topics: 1,
       materials: 1,
     });
+    const remainingQuestions = await contentApp.inject({
+      method: "GET",
+      url: "/api/questions",
+      headers: ownerHeaders,
+    });
+    assert.deepEqual(remainingQuestions.json(), []);
   });
 
   it("imports the traceable study matrix idempotently for the authenticated account", async () => {

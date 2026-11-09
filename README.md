@@ -49,6 +49,12 @@ As rotas autenticadas de conteúdo permitem:
 
 Os estados de tópico são `not_started`, `in_progress`, `studied` e `review_pending`. Materiais aceitam os tipos `video`, `book`, `article`, `questions`, `document` e `other`, com URL HTTP(S), texto ou ambos. Remover uma disciplina também remove seus tópicos e materiais; remover um tópico remove os materiais associados. Todas as consultas e exclusões verificam o proprietário autenticado.
 
+## Banco de questões
+
+`GET /api/questions`, `POST /api/questions`, `PATCH /api/questions/:questionId` e `DELETE /api/questions/:questionId` mantêm questões vinculadas a tópicos da conta autenticada. Cada registro guarda enunciado, alternativas, índice do gabarito, explicação, banca, concurso, cargo, ano, número, link da fonte e situação (`active`, `annulled` ou `outdated`). O endpoint exige uma URL HTTP(S) de fonte e valida a quantidade de alternativas e o gabarito. Remover uma disciplina ou tópico remove também as questões associadas.
+
+O armazenamento não importa conteúdo de plataformas externas. Cadastre questões cujo uso seja autorizado ou resumos próprios e preserve o link para a fonte original; não automatize extração nem redistribua conteúdo protegido.
+
 ## Publicação no Render
 
 O arquivo `render.yaml` descreve o serviço web Node no plano gratuito, os comandos de instalação/build/start e o health check. Para publicar:
