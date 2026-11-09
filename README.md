@@ -62,6 +62,33 @@ O arquivo `render.yaml` descreve o serviço web Node no plano gratuito, os coman
 
 O plano gratuito do Render pode suspender serviços inativos e ter limites que mudam; verifique os termos atuais antes de depender dele. MongoDB Atlas e Render precisam estar acessíveis pela internet; restrinja credenciais e tráfego conforme a configuração da conta. O primeiro boot falha explicitamente até que todas as variáveis e a conectividade do banco estejam configuradas.
 
+## Operação de produção
+
+### Smoke test após o deploy
+
+1. Confirme que `GET https://study-routine-api.onrender.com/api/health` retorna HTTP 200 e somente `{"status":"ok"}`. O Render também usa esse caminho como health check.
+2. No site publicado, confirme que login, conteúdo e planejamento carregam. Verifique a origem do GitHub Pages em `WEB_ORIGIN` sem acrescentar o caminho `/study-routine-web`.
+3. Com uma conta de teste autorizada, crie uma disciplina e um tópico, salve a disponibilidade, consulte o plano e recarregue a página para confirmar a persistência. Não use dados pessoais reais como dados de teste.
+4. No navegador, verifique se o cache offline contém apenas os arquivos estáticos do frontend; respostas da API e credenciais não devem ser armazenadas.
+5. Remova os dados de teste ao terminar.
+
+A API requer conta e token para conteúdo e planejamento. Não coloque `INVITE_CODE`, `JWT_SECRET`, senhas ou tokens em comandos compartilhados, issues, logs ou variáveis públicas do frontend. O health check não testa leitura ou gravação no banco; a inicialização só aceita tráfego depois de conectar e verificar o MongoDB.
+
+### Backup e restauração
+
+O repositório não configura backups do MongoDB. Confirme no painel do Atlas se o cluster e o plano contratado oferecem backups automáticos/PITR, qual a retenção e como restaurar. Se não houver cobertura adequada, estabeleça uma exportação periódica com MongoDB Database Tools e armazene os arquivos criptografados fora do repositório e do serviço Render, com acesso restrito.
+
+Faça um teste de restauração em um banco separado antes de depender de um backup. Valide contagens e acesso à aplicação antes de qualquer troca de configuração. Não restaure sobre o banco de produção sem uma janela planejada, backup atual e confirmação da operação; não inclua URI, credenciais ou arquivos de backup no GitHub.
+
+### Rollback e limites
+
+- **API:** em **Render → serviço → Events/Deploys**, reverta para o último deploy saudável. Para reverter código de forma auditável, use `git revert <commit>` e publique o novo commit em `main`; não reescreva o histórico compartilhado.
+- **Frontend:** reverta o commit defeituoso com `git revert <commit>` em `main`. O CI e o workflow do GitHub Pages executarão novamente antes de publicar a versão corrigida.
+- **Banco:** rollback do código não desfaz nem deve apagar dados. Se uma mudança de dados precisar ser revertida, restaure primeiro uma cópia em ambiente separado e planeje a recuperação explicitamente.
+- **Hospedagem:** o plano gratuito do Render pode suspender serviços inativos e introduzir demora no primeiro acesso. Limites, preços, retenção de backups e disponibilidade do MongoDB Atlas dependem dos planos vigentes; confirme-os nos painéis dos provedores. Este projeto não promete SLA nem mantém backup próprio.
+
+O workflow **CI** executa `npm ci`, lint, formatação, testes e build em push, pull request ou execução manual pela aba **Actions**. O health check do Render e o CI não substituem o smoke test autenticado.
+
 ## Verificações
 
 ```powershell
