@@ -29,13 +29,15 @@ const noticeSource: MatrixSource = {
   title: "Edital UFC nº 1/2024 — conteúdo programático",
   type: "document",
   url: "https://www.quixada.ufc.br/wp-content/uploads/2024/10/EDITAL-No-1-UFC-DE-30-DE-SETEMBRO-DE-2024-EDITAL-No-1-UFC-DE-30-DE-SETEMBRO-.pdf",
-  text: "Referência histórica de conteúdos de Governança de TI, Ciência de Dados, Infraestrutura e Redes, e Segurança da Informação. O próximo edital pode ser diferente.",
+  text: "Referência histórica para os conteúdos de Analista de Tecnologia da Informação, incluindo disciplinas gerais e específicas. O próximo edital pode ser diferente.",
 };
 
 const decreeTag =
   "[DECRETO 13.141/2026, Anexo, item 2.1 — aderência às atribuições; não é tópico literal de edital]";
 const noticeTag =
   "[UFC 2024 — reaproveitado como referência do edital anterior, sem garantia de repetição]";
+const generalNoticeTag =
+  "[EDITAL UFC 01/2024 — conteúdo programático de Analista de Tecnologia da Informação; referência histórica, sem garantia de repetição]";
 const complementaryTag =
   "[COMPLEMENTAR — aprofundamento recomendado; não confirmado no edital UFC 2024 nem especificado como prova pelo Decreto]";
 
@@ -334,6 +336,147 @@ export const STUDY_MATRIX: MatrixSubject[] = [
         name: "Suporte a estações, aplicações e conectividade",
         description: `${complementaryTag} Suporte a estações, sistemas, aplicações, contas, conectividade, impressão e ferramentas institucionais.`,
         estimatedMinutes: 60,
+      },
+    ],
+  },
+  {
+    name: "Língua Portuguesa",
+    description:
+      "Conteúdo programático de Língua Portuguesa para Analista de Tecnologia da Informação no Edital UFC nº 01/2024. São 10 questões indicadas no edital; confira eventuais retificações na fonte.",
+    sources: [
+      {
+        ...noticeSource,
+        text: "Fonte do conteúdo programático de Língua Portuguesa para Analista de Tecnologia da Informação no Edital UFC nº 01/2024. O edital futuro poderá alterar a cobrança.",
+      },
+    ],
+    topics: [
+      {
+        name: "Textualidade",
+        description: `${generalNoticeTag} Coerência textual; coesão referencial e sequencial; situacionalidade; intertextualidade.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Semântica",
+        description: `${generalNoticeTag} Sinonímia e antonímia; hiponímia e hiperonímia; homonímia e paronímia; polissemia; ambiguidade; denotação e conotação; sentido próprio e figurado; implícitos.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Tipologia e gêneros textuais",
+        description: `${generalNoticeTag} Tipos e gêneros textuais; constituição e organização dos textos; funções e características linguísticas; documentos oficiais.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Redação oficial",
+        description: `${generalNoticeTag} Padrão ofício; ata; atestado; certidão; convocação; edital; parecer; portaria; requerimento; relatório.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Interpretação e reescrita",
+        description: `${generalNoticeTag} Propósito comunicativo; reescrita de frases e parágrafos; adequação aos gêneros textuais; níveis de formalidade.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Convenções gráficas",
+        description: `${generalNoticeTag} Ortografia oficial; abreviações, siglas e símbolos; acentuação gráfica; crase; pontuação.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Morfologia",
+        description: `${generalNoticeTag} Elementos mórficos; formação de palavras; classes de palavras; caracterização morfossintática; emprego das classes gramaticais.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Flexão nominal e verbal",
+        description: `${generalNoticeTag} Gênero e número; tempos e modos verbais; voz verbal; aspecto verbal; pronomes e expressões de tratamento.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Sintaxe",
+        description: `${generalNoticeTag} Concordância verbal e nominal; regência verbal e nominal; termos da oração; relações sintático-semânticas entre orações; relações entre períodos e parágrafos; colocação dos termos e das orações.`,
+        estimatedMinutes: 90,
+      },
+    ],
+  },
+  {
+    name: "Legislação",
+    description:
+      "Conteúdo programático de Legislação para Analista de Tecnologia da Informação no Edital UFC nº 01/2024. São 10 questões indicadas no edital; confira eventuais retificações na fonte.",
+    sources: [
+      {
+        ...noticeSource,
+        text: "Fonte do conteúdo programático de Legislação para Analista de Tecnologia da Informação no Edital UFC nº 01/2024. Consulte o edital e eventuais retificações; normas legais podem ser alteradas.",
+      },
+    ],
+    topics: [
+      {
+        name: "Constituição Federal de 1988",
+        description: `${generalNoticeTag} Princípios fundamentais; direitos e garantias fundamentais; organização do Estado.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Decreto nº 1.171/1994 — Código de Ética",
+        description: `${generalNoticeTag} Código de Ética Profissional do Servidor Público Civil do Poder Executivo Federal.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Lei nº 8.112/1990 — Regime jurídico dos servidores",
+        description: `${generalNoticeTag} Regime jurídico dos servidores públicos civis da União; direitos e vantagens; deveres e proibições; responsabilidades; penalidades; processo administrativo disciplinar.`,
+        estimatedMinutes: 120,
+      },
+      {
+        name: "Lei nº 11.091/2005 — PCCTAE",
+        description: `${generalNoticeTag} Plano de Carreira dos Cargos Técnico-Administrativos em Educação; estruturação da carreira; desenvolvimento profissional.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Lei nº 12.527/2011 — Lei de Acesso à Informação",
+        description: `${generalNoticeTag} Transparência pública; acesso e restrições à informação.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Lei nº 13.709/2018 — LGPD",
+        description: `${generalNoticeTag} Princípios e fundamentos; tratamento de dados pessoais; direitos dos titulares; agentes de tratamento; segurança e proteção de dados.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Lei nº 9.784/1999 — Processo administrativo federal",
+        description: `${generalNoticeTag} Princípios; direitos dos administrados; competência; impedimentos e suspeição; recursos administrativos.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Lei nº 8.429/1992 — Improbidade administrativa",
+        description: `${generalNoticeTag} Atos de improbidade; sanções aplicáveis; alterações da Lei nº 14.230/2021.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Lei nº 13.726/2018 — Desburocratização",
+        description: `${generalNoticeTag} Desburocratização e simplificação administrativa.`,
+        estimatedMinutes: 45,
+      },
+      {
+        name: "Lei nº 14.133/2021 — Licitações e contratos",
+        description: `${generalNoticeTag} Princípios; modalidades; fases da licitação; contratação direta; contratos administrativos.`,
+        estimatedMinutes: 120,
+      },
+      {
+        name: "Decreto nº 11.072/2022 — PGD",
+        description: `${generalNoticeTag} Programa de Gestão e Desempenho (PGD).`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Lei nº 14.681/2023 — Bem-estar e qualidade de vida",
+        description: `${generalNoticeTag} Política de Bem-Estar, Saúde e Qualidade de Vida no Trabalho e Valorização dos Profissionais da Educação.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Estatuto da UFC",
+        description: `${generalNoticeTag} Organização institucional; estrutura administrativa; órgãos e competências.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Regimento Geral da UFC",
+        description: `${generalNoticeTag} Organização e funcionamento da universidade; administração universitária; competências dos órgãos institucionais.`,
+        estimatedMinutes: 75,
       },
     ],
   },

@@ -607,9 +607,68 @@ describe("study content API", () => {
       subjectsInMatrix: number;
       topicsInMatrix: number;
     }>();
+    assert.equal(firstResult.subjectsInMatrix, 8);
+    assert.equal(firstResult.topicsInMatrix, 62);
     assert.equal(firstResult.subjectsCreated, firstResult.subjectsInMatrix);
     assert.equal(firstResult.topicsCreated, firstResult.topicsInMatrix);
     assert.ok(firstResult.materialsCreated >= firstResult.subjectsInMatrix);
+
+    const snapshot = await contentApp.inject({
+      method: "GET",
+      url: "/api/content",
+      headers,
+    });
+    const importedContent = snapshot.json<{
+      subjects: { id: string; name: string; description: string }[];
+      topics: { subjectId: string; name: string; description: string }[];
+      materials: { subjectId: string; url: string }[];
+    }>();
+    const portuguese = importedContent.subjects.find(
+      (subject) => subject.name === "Língua Portuguesa",
+    );
+    const legislation = importedContent.subjects.find(
+      (subject) => subject.name === "Legislação",
+    );
+    assert.ok(portuguese);
+    assert.ok(legislation);
+    assert.match(portuguese.description, /10 questões/);
+    assert.match(legislation.description, /10 questões/);
+    const portugueseTopics = importedContent.topics.filter(
+      (topic) => topic.subjectId === portuguese.id,
+    );
+    const legislationTopics = importedContent.topics.filter(
+      (topic) => topic.subjectId === legislation.id,
+    );
+    assert.equal(portugueseTopics.length, 9);
+    assert.equal(legislationTopics.length, 14);
+    assert.ok(
+      portugueseTopics.some(
+        (topic) =>
+          topic.name === "Sintaxe" &&
+          /concordância verbal e nominal/i.test(topic.description),
+      ),
+    );
+    assert.ok(
+      legislationTopics.some(
+        (topic) =>
+          topic.name.includes("8.112/1990") &&
+          topic.description.includes("processo administrativo disciplinar"),
+      ),
+    );
+    assert.ok(
+      importedContent.materials.some(
+        (material) =>
+          material.subjectId === portuguese.id &&
+          material.url.includes("EDITAL-No-1-UFC-DE-30-DE-SETEMBRO"),
+      ),
+    );
+    assert.ok(
+      importedContent.materials.some(
+        (material) =>
+          material.subjectId === legislation.id &&
+          material.url.includes("EDITAL-No-1-UFC-DE-30-DE-SETEMBRO"),
+      ),
+    );
 
     const second = await contentApp.inject({
       method: "POST",

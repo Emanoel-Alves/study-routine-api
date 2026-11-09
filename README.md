@@ -49,6 +49,8 @@ As rotas autenticadas de conteúdo permitem:
 
 Os estados de tópico são `not_started`, `in_progress`, `studied` e `review_pending`. Materiais aceitam os tipos `video`, `book`, `article`, `questions`, `document` e `other`, com URL HTTP(S), texto ou ambos. Remover uma disciplina também remove seus tópicos e materiais; remover um tópico remove os materiais associados. Todas as consultas e exclusões verificam o proprietário autenticado.
 
+`POST /api/content/import-matrix` adiciona de forma idempotente a matriz de estudos com oito disciplinas e 62 tópicos. Além dos seis blocos de TI, inclui Língua Portuguesa (nove tópicos) e Legislação (14 tópicos) conforme a referência ao Edital UFC nº 01/2024 para Analista de Tecnologia da Informação. As duas disciplinas guardam o edital como material de fonte. Importar novamente acrescenta itens ausentes e não duplica nem sobrescreve os já cadastrados.
+
 As sessões cronometradas podem enviar `durationSeconds`, preservando a duração medida; sessões manuais usam `durationMinutes`. O resumo semanal soma segundos e exibe apenas minutos completos, sem arredondar cada sessão curta para cima. Sessões antigas, sem `durationSeconds`, continuam sendo lidas como minutos inteiros.
 
 ## Planejamentos
