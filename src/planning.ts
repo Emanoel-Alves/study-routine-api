@@ -11,6 +11,7 @@ export interface StudySession {
   topicId: string;
   date: string;
   durationMinutes: number;
+  durationSeconds?: number;
   notes: string;
   kind: "study" | "review";
   createdAt: Date;
@@ -66,6 +67,7 @@ interface StudySessionDocument {
   topicId: string;
   date: string;
   durationMinutes: number;
+  durationSeconds?: number;
   notes: string;
   kind: "study" | "review";
   createdAt: Date;
@@ -142,6 +144,7 @@ export class MongoPlanningStore implements PlanningStore {
       _id: new ObjectId(),
       userId,
       ...input,
+      durationSeconds: input.durationSeconds ?? input.durationMinutes * 60,
       createdAt: new Date(),
     };
     await this.sessions.insertOne(document);
@@ -209,6 +212,7 @@ function toSession(document: StudySessionDocument): StudySession {
     topicId: document.topicId,
     date: document.date,
     durationMinutes: document.durationMinutes,
+    durationSeconds: document.durationSeconds ?? document.durationMinutes * 60,
     notes: document.notes,
     kind: document.kind,
     createdAt: document.createdAt,

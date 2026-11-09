@@ -762,5 +762,61 @@ describe("study content API", () => {
     assert.equal(finalPlan.weeklyStudiedMinutes, 50);
     assert.equal(finalPlan.weeklySessionCount, 2);
     assert.equal(finalPlan.deadline?.feasible, false);
+
+    const shortTimedSession = await contentApp.inject({
+      method: "POST",
+      url: `/api/topics/${plannedTopic.topicId}/sessions`,
+      headers,
+      payload: {
+        kind: "study",
+        date: today,
+        durationSeconds: 5,
+      },
+    });
+    assert.equal(shortTimedSession.statusCode, 201);
+    assert.equal(
+      shortTimedSession.json<{ session: { durationMinutes: number } }>().session
+        .durationMinutes,
+      0,
+    );
+    assert.equal(
+      shortTimedSession.json<{ session: { durationSeconds: number } }>().session
+        .durationSeconds,
+      5,
+    );
+
+    const planAfterShortSession = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const shortSessionPlan = planAfterShortSession.json<{
+      plan: { weeklyStudiedMinutes: number; weeklySessionCount: number };
+    }>().plan;
+    assert.equal(shortSessionPlan.weeklyStudiedMinutes, 50);
+    assert.equal(shortSessionPlan.weeklySessionCount, 3);
+
+    const anotherShortSession = await contentApp.inject({
+      method: "POST",
+      url: `/api/topics/${plannedTopic.topicId}/sessions`,
+      headers,
+      payload: {
+        kind: "study",
+        date: today,
+        durationSeconds: 55,
+      },
+    });
+    assert.equal(anotherShortSession.statusCode, 201);
+
+    const planAfterAccumulatedSeconds = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const accumulatedPlan = planAfterAccumulatedSeconds.json<{
+      plan: { weeklyStudiedMinutes: number; weeklySessionCount: number };
+    }>().plan;
+    assert.equal(accumulatedPlan.weeklyStudiedMinutes, 51);
+    assert.equal(accumulatedPlan.weeklySessionCount, 4);
   });
 });

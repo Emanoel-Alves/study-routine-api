@@ -91,7 +91,8 @@ interface PreferencesBody {
 interface SessionBody {
   kind: "study" | "review";
   date?: string;
-  durationMinutes: number;
+  durationMinutes?: number;
+  durationSeconds?: number;
   notes?: string;
 }
 
@@ -848,11 +849,22 @@ export async function buildApp(options: AppOptions) {
         body: {
           type: "object",
           additionalProperties: false,
-          required: ["kind", "durationMinutes"],
+          required: ["kind"],
+          oneOf: [
+            {
+              required: ["durationMinutes"],
+              not: { required: ["durationSeconds"] },
+            },
+            {
+              required: ["durationSeconds"],
+              not: { required: ["durationMinutes"] },
+            },
+          ],
           properties: {
             kind: { type: "string", enum: ["study", "review"] },
             date: { type: "string", format: "date" },
             durationMinutes: { type: "integer", minimum: 1, maximum: 720 },
+            durationSeconds: { type: "integer", minimum: 1, maximum: 43_200 },
             notes: { type: "string", maxLength: 2000 },
           },
         },
@@ -882,7 +894,12 @@ export async function buildApp(options: AppOptions) {
       const session = await options.planningStore.createSession(userId, {
         topicId: topic.id,
         date: sessionDate,
-        durationMinutes: request.body.durationMinutes,
+        durationMinutes:
+          request.body.durationMinutes ??
+          Math.floor((request.body.durationSeconds ?? 0) / 60),
+        durationSeconds:
+          request.body.durationSeconds ??
+          (request.body.durationMinutes ?? 0) * 60,
         notes: request.body.notes?.trim() ?? "",
         kind: request.body.kind,
       });

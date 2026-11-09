@@ -49,6 +49,8 @@ As rotas autenticadas de conteúdo permitem:
 
 Os estados de tópico são `not_started`, `in_progress`, `studied` e `review_pending`. Materiais aceitam os tipos `video`, `book`, `article`, `questions`, `document` e `other`, com URL HTTP(S), texto ou ambos. Remover uma disciplina também remove seus tópicos e materiais; remover um tópico remove os materiais associados. Todas as consultas e exclusões verificam o proprietário autenticado.
 
+As sessões cronometradas podem enviar `durationSeconds`, preservando a duração medida; sessões manuais usam `durationMinutes`. O resumo semanal soma segundos e exibe apenas minutos completos, sem arredondar cada sessão curta para cima. Sessões antigas, sem `durationSeconds`, continuam sendo lidas como minutos inteiros.
+
 ## Banco de questões
 
 `GET /api/questions`, `POST /api/questions`, `PATCH /api/questions/:questionId` e `DELETE /api/questions/:questionId` mantêm questões vinculadas a tópicos da conta autenticada. Cada registro guarda enunciado, alternativas, índice do gabarito, explicação, banca, concurso, cargo, ano, número, link da fonte e situação (`active`, `annulled` ou `outdated`). O endpoint exige uma URL HTTP(S) de fonte e valida a quantidade de alternativas e o gabarito. Remover uma disciplina ou tópico remove também as questões associadas.

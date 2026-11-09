@@ -135,9 +135,12 @@ export function generateWeeklyPlan(
       plannedMinutes: 0,
       topics: [] as PlannedTopic[],
       overCapacity: false,
-      studiedMinutes: daySessions.reduce(
-        (total, session) => total + session.durationMinutes,
-        0,
+      studiedMinutes: Math.floor(
+        daySessions.reduce(
+          (total, session) =>
+            total + (session.durationSeconds ?? session.durationMinutes * 60),
+          0,
+        ) / 60,
       ),
     };
   });
@@ -183,9 +186,12 @@ export function generateWeeklyPlan(
     (total, day) => total + day.capacityMinutes,
     0,
   );
-  const weeklyStudiedMinutes = sessions.reduce(
-    (total, session) => total + session.durationMinutes,
-    0,
+  const weeklyStudiedMinutes = Math.floor(
+    sessions.reduce(
+      (total, session) =>
+        total + (session.durationSeconds ?? session.durationMinutes * 60),
+      0,
+    ) / 60,
   );
 
   return {
