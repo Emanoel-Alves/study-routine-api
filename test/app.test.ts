@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { buildApp } from "../src/app.ts";
+import { MemoryContentStore } from "./memory-content-store.ts";
+import { MemoryPlanningStore } from "./memory-planning-store.ts";
 import type { User, UserStore } from "../src/users.ts";
 
 const webOrigin = "http://localhost:5173";
@@ -35,12 +37,25 @@ class MemoryUserStore implements UserStore {
 }
 
 const users = new MemoryUserStore();
+const content = new MemoryContentStore();
+const planning = new MemoryPlanningStore();
 const app = await buildApp({
   webOrigin,
   jwtSecret: "a-test-secret-that-is-long-enough-for-hs256",
   inviteCode,
   authRateLimitMax: 20,
   userStore: users,
+  contentStore: content,
+  planningStore: planning,
+});
+const contentApp = await buildApp({
+  webOrigin,
+  jwtSecret: "a-test-secret-that-is-long-enough-for-hs256",
+  inviteCode,
+  authRateLimitMax: 20,
+  userStore: users,
+  contentStore: content,
+  planningStore: planning,
 });
 
 describe("API fundamentals", () => {
@@ -67,6 +82,29 @@ describe("API fundamentals", () => {
     });
 
     assert.equal(response.headers["access-control-allow-origin"], webOrigin);
+  });
+
+  it("allows authenticated PATCH requests from the configured frontend", async () => {
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/api/planning/preferences",
+      headers: {
+        origin: webOrigin,
+        "access-control-request-method": "PATCH",
+        "access-control-request-headers": "authorization,content-type",
+      },
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.equal(response.headers["access-control-allow-origin"], webOrigin);
+    assert.match(
+      response.headers["access-control-allow-methods"] ?? "",
+      /\bPATCH\b/,
+    );
+    assert.match(
+      response.headers["access-control-allow-headers"] ?? "",
+      /authorization/i,
+    );
   });
 
   it("does not allow requests from an unconfigured origin", async () => {
@@ -195,6 +233,7 @@ describe("API fundamentals", () => {
       inviteCode,
       authRateLimitMax: 1,
       userStore: new MemoryUserStore(),
+      contentStore: new MemoryContentStore(),
     });
     await limitedApp.ready();
 
@@ -230,5 +269,331 @@ describe("API fundamentals", () => {
     });
 
     assert.equal(response.statusCode, 401);
+  });
+});
+
+describe("study content API", () => {
+  before(async () => {
+    await contentApp.ready();
+  });
+
+  after(async () => {
+    await contentApp.close();
+  });
+
+  async function register(email: string): Promise<string> {
+    const response = await contentApp.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email,
+        password: "a-very-long-password",
+        inviteCode,
+      },
+    });
+    assert.equal(response.statusCode, 201);
+    return response.json<{ accessToken: string }>().accessToken;
+  }
+
+  it("validates access, persists content, filters by owner, and cascades confirmed deletes", async () => {
+    const unauthenticated = await contentApp.inject({
+      method: "GET",
+      url: "/api/content",
+    });
+    assert.equal(unauthenticated.statusCode, 401);
+
+    const ownerToken = await register("content-owner@example.com");
+    const ownerHeaders = { authorization: `Bearer ${ownerToken}` };
+    const createdSubject = await contentApp.inject({
+      method: "POST",
+      url: "/api/subjects",
+      headers: ownerHeaders,
+      payload: { name: "Direito Constitucional", description: "Base legal" },
+    });
+    assert.equal(createdSubject.statusCode, 201);
+    const subject = createdSubject.json<{ id: string; archived: boolean }>();
+    assert.equal(subject.archived, false);
+
+    const createdTopic = await contentApp.inject({
+      method: "POST",
+      url: `/api/subjects/${subject.id}/topics`,
+      headers: ownerHeaders,
+      payload: { name: "Princípios", status: "in_progress" },
+    });
+    assert.equal(createdTopic.statusCode, 201);
+    const topic = createdTopic.json<{ id: string; status: string }>();
+    assert.equal(topic.status, "in_progress");
+
+    const savedNote = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/topics/${topic.id}`,
+      headers: ownerHeaders,
+      payload: { notes: "Revisar o princípio da legalidade." },
+    });
+    assert.equal(
+      savedNote.json<{ notes: string }>().notes,
+      "Revisar o princípio da legalidade.",
+    );
+
+    const createdMaterial = await contentApp.inject({
+      method: "POST",
+      url: `/api/subjects/${subject.id}/materials`,
+      headers: ownerHeaders,
+      payload: {
+        topicId: topic.id,
+        title: "Aula de princípios",
+        type: "video",
+        url: "https://example.com/aula",
+      },
+    });
+    assert.equal(createdMaterial.statusCode, 201);
+
+    const unsafeMaterial = await contentApp.inject({
+      method: "POST",
+      url: `/api/subjects/${subject.id}/materials`,
+      headers: ownerHeaders,
+      payload: {
+        title: "Link inseguro",
+        type: "other",
+        url: "javascript:alert(1)",
+      },
+    });
+    assert.equal(unsafeMaterial.statusCode, 400);
+
+    const otherToken = await register("another-owner@example.com");
+    const otherHeaders = { authorization: `Bearer ${otherToken}` };
+    const otherContent = await contentApp.inject({
+      method: "GET",
+      url: "/api/content",
+      headers: otherHeaders,
+    });
+    assert.deepEqual(otherContent.json(), {
+      subjects: [],
+      topics: [],
+      materials: [],
+    });
+    const crossAccountUpdate = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/subjects/${subject.id}`,
+      headers: otherHeaders,
+      payload: { name: "Acesso indevido" },
+    });
+    assert.equal(crossAccountUpdate.statusCode, 404);
+
+    const archived = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/subjects/${subject.id}`,
+      headers: ownerHeaders,
+      payload: { archived: true },
+    });
+    assert.equal(archived.json<{ archived: boolean }>().archived, true);
+    const reactivated = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/subjects/${subject.id}`,
+      headers: ownerHeaders,
+      payload: { archived: false },
+    });
+    assert.equal(reactivated.json<{ archived: boolean }>().archived, false);
+
+    const snapshot = await contentApp.inject({
+      method: "GET",
+      url: "/api/content",
+      headers: ownerHeaders,
+    });
+    const snapshotBody = snapshot.json<{
+      subjects: unknown[];
+      topics: { notes: string }[];
+      materials: unknown[];
+    }>();
+    assert.equal(snapshotBody.subjects.length, 1);
+    assert.equal(
+      snapshotBody.topics[0]?.notes,
+      "Revisar o princípio da legalidade.",
+    );
+    assert.equal(snapshotBody.materials.length, 1);
+
+    const deleted = await contentApp.inject({
+      method: "DELETE",
+      url: `/api/subjects/${subject.id}`,
+      headers: ownerHeaders,
+    });
+    assert.deepEqual(deleted.json(), {
+      deleted: true,
+      topics: 1,
+      materials: 1,
+    });
+  });
+
+  it("imports the traceable study matrix idempotently for the authenticated account", async () => {
+    const token = await register("matrix-owner@example.com");
+    const headers = { authorization: `Bearer ${token}` };
+    const first = await contentApp.inject({
+      method: "POST",
+      url: "/api/content/import-matrix",
+      headers,
+    });
+    assert.equal(first.statusCode, 200);
+    const firstResult = first.json<{
+      subjectsCreated: number;
+      topicsCreated: number;
+      materialsCreated: number;
+      subjectsInMatrix: number;
+      topicsInMatrix: number;
+    }>();
+    assert.equal(firstResult.subjectsCreated, firstResult.subjectsInMatrix);
+    assert.equal(firstResult.topicsCreated, firstResult.topicsInMatrix);
+    assert.ok(firstResult.materialsCreated >= firstResult.subjectsInMatrix);
+
+    const second = await contentApp.inject({
+      method: "POST",
+      url: "/api/content/import-matrix",
+      headers,
+    });
+    assert.deepEqual(second.json(), {
+      subjectsCreated: 0,
+      topicsCreated: 0,
+      materialsCreated: 0,
+      subjectsInMatrix: firstResult.subjectsInMatrix,
+      topicsInMatrix: firstResult.topicsInMatrix,
+    });
+  });
+
+  it("validates study preferences, schedules topics, preserves sessions, and flags an infeasible deadline", async () => {
+    const token = await register("planning-owner@example.com");
+    const headers = { authorization: `Bearer ${token}` };
+    const imported = await contentApp.inject({
+      method: "POST",
+      url: "/api/content/import-matrix",
+      headers,
+    });
+    assert.equal(imported.statusCode, 200);
+    const snapshot = await contentApp.inject({
+      method: "GET",
+      url: "/api/content",
+      headers,
+    });
+    const { topics } = snapshot.json<{
+      topics: { id: string; estimatedMinutes: number | null }[];
+    }>();
+    assert.ok(topics.length > 1);
+    const today = new Date().toISOString().slice(0, 10);
+    const todayWeekday =
+      (new Date(`${today}T00:00:00.000Z`).getUTCDay() + 6) % 7;
+
+    const invalidPreferences = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/preferences",
+      headers,
+      payload: {
+        studyDays: [0, 0],
+        minutesPerDay: 15,
+        targetDate: null,
+      },
+    });
+    assert.equal(invalidPreferences.statusCode, 400);
+
+    const savedPreferences = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/preferences",
+      headers,
+      payload: {
+        studyDays: [todayWeekday, (todayWeekday + 1) % 7],
+        minutesPerDay: 120,
+        targetDate: null,
+      },
+    });
+    assert.equal(savedPreferences.statusCode, 200);
+
+    const planningResponse = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const result = planningResponse.json<{
+      plan: {
+        days: { plannedMinutes: number; capacityMinutes: number }[];
+        unscheduledTopics: { topicId: string }[];
+        weeklyStudiedMinutes: number;
+        deadline: { feasible: boolean } | null;
+      };
+    }>();
+    assert.ok(
+      result.plan.days.every(
+        (day) => day.plannedMinutes <= day.capacityMinutes,
+      ),
+    );
+    assert.ok(result.plan.unscheduledTopics.length > 0);
+
+    const plannedTopic = result.plan.days
+      .flatMap((day) => day.topics)
+      .find((topic) => topic.topicId !== topics[0]?.id);
+    assert.ok(plannedTopic);
+    const study = await contentApp.inject({
+      method: "POST",
+      url: `/api/topics/${plannedTopic.topicId}/sessions`,
+      headers,
+      payload: {
+        kind: "study",
+        date: today,
+        durationMinutes: 35,
+        notes: "Estudei os conceitos principais.",
+      },
+    });
+    assert.equal(study.statusCode, 201);
+    assert.equal(
+      study.json<{ topic: { status: string } }>().topic.status,
+      "in_progress",
+    );
+
+    const adjusted = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/planning/items/${plannedTopic.topicId}`,
+      headers,
+      payload: { plannedDate: today },
+    });
+    assert.equal(adjusted.statusCode, 200);
+
+    const completedReview = await contentApp.inject({
+      method: "POST",
+      url: `/api/topics/${plannedTopic.topicId}/sessions`,
+      headers,
+      payload: {
+        kind: "review",
+        date: today,
+        durationMinutes: 15,
+      },
+    });
+    assert.equal(completedReview.statusCode, 201);
+    assert.equal(
+      completedReview.json<{ topic: { status: string } }>().topic.status,
+      "studied",
+    );
+
+    const targetPreferences = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/preferences",
+      headers,
+      payload: {
+        studyDays: [todayWeekday],
+        minutesPerDay: 15,
+        targetDate: today,
+      },
+    });
+    assert.equal(targetPreferences.statusCode, 200);
+    const updatedPlan = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const finalPlan = updatedPlan.json<{
+      plan: {
+        weeklyStudiedMinutes: number;
+        weeklySessionCount: number;
+        deadline: { feasible: boolean } | null;
+      };
+    }>().plan;
+    assert.equal(finalPlan.weeklyStudiedMinutes, 50);
+    assert.equal(finalPlan.weeklySessionCount, 2);
+    assert.equal(finalPlan.deadline?.feasible, false);
   });
 });

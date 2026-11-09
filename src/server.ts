@@ -1,5 +1,7 @@
 import { MongoClient } from "mongodb";
 import { buildApp } from "./app.ts";
+import { MongoContentStore } from "./content.ts";
+import { MongoPlanningStore } from "./planning.ts";
 import { MongoUserStore } from "./users.ts";
 
 const port = Number(process.env.PORT ?? 3000);
@@ -36,9 +38,18 @@ try {
   await mongo.connect();
   await mongo.db().command({ ping: 1 });
   const users = new MongoUserStore(mongo, process.env.MONGODB_DATABASE);
+  const content = new MongoContentStore(mongo, process.env.MONGODB_DATABASE);
+  const planning = new MongoPlanningStore(mongo, process.env.MONGODB_DATABASE);
   await users.ensureIndexes();
+  await content.ensureIndexes();
+  await planning.ensureIndexes();
 
-  const app = await buildApp({ logger: true, userStore: users });
+  const app = await buildApp({
+    logger: true,
+    userStore: users,
+    contentStore: content,
+    planningStore: planning,
+  });
   app.addHook("onClose", async () => mongo.close());
   await app.listen({ port, host });
 } catch (error) {

@@ -35,7 +35,19 @@ O serviço inicia em `http://localhost:3000`. O endpoint `GET /api/health` confi
 
 O cadastro não é público: exige um `INVITE_CODE` de pelo menos 24 caracteres. As contas usam e-mail e senha com pelo menos 12 caracteres; senhas são armazenadas com scrypt e sal aleatório. A API limita tentativas e emite tokens bearer com validade de uma hora. `JWT_SECRET` deve ter pelo menos 32 bytes aleatórios.
 
-O endpoint `GET /api/auth/me` exige um token válido. Rotas futuras de dados de estudo devem usar o identificador derivado do token em todas as consultas e mutações; nunca confie em um identificador de usuário enviado pelo cliente.
+O endpoint `GET /api/auth/me` exige um token válido. Todas as rotas de conteúdo usam o identificador derivado do token em consultas e alterações; nunca confie em um identificador de usuário enviado pelo cliente.
+
+## Conteúdo de estudo
+
+As rotas autenticadas de conteúdo permitem:
+
+- Consultar o conjunto do usuário em `GET /api/content`.
+- Criar, editar, arquivar, reativar e remover disciplinas em `/api/subjects`.
+- Criar, editar, reordenar, atualizar o estado e remover tópicos em `/api/subjects/:subjectId/topics` e `/api/topics/:topicId`.
+- Criar, editar e remover materiais em `/api/subjects/:subjectId/materials` e `/api/materials/:materialId`.
+- Salvar anotações gerais na disciplina e anotações específicas no tópico.
+
+Os estados de tópico são `not_started`, `in_progress`, `studied` e `review_pending`. Materiais aceitam os tipos `video`, `book`, `article`, `questions`, `document` e `other`, com URL HTTP(S), texto ou ambos. Remover uma disciplina também remove seus tópicos e materiais; remover um tópico remove os materiais associados. Todas as consultas e exclusões verificam o proprietário autenticado.
 
 ## Publicação no Render
 
