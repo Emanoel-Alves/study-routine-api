@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
@@ -89,6 +90,15 @@ interface SessionBody {
 interface PlanItemBody {
   plannedDate: string;
 }
+
+interface SessionTokenPayload {
+  sub: string;
+  email: string;
+  tokenUse?: "session";
+}
+
+const sessionCookieName = "study_routine_session";
+const sessionCookieMaxAgeSeconds = 30 * 24 * 60 * 60;
 
 const credentialsSchema = {
   type: "object",
@@ -232,10 +242,13 @@ export async function buildApp(options: AppOptions) {
   });
   const webOrigin =
     options.webOrigin ?? process.env.WEB_ORIGIN ?? "http://localhost:5173";
+  const secureCookies = new URL(webOrigin).protocol === "https:";
 
+  await app.register(cookie);
   await app.register(cors, {
     origin: (origin, callback) => callback(null, origin === webOrigin),
     methods: ["GET", "HEAD", "POST", "PATCH", "DELETE"],
+    credentials: true,
   });
   await app.register(jwt, {
     secret: jwtSecret,
@@ -250,12 +263,56 @@ export async function buildApp(options: AppOptions) {
   const dummyPasswordHash = await hashPassword(
     randomBytes(32).toString("base64url"),
   );
+  const sessionCookieOptions = {
+    httpOnly: true,
+    secure: secureCookies,
+    sameSite: secureCookies ? ("none" as const) : ("lax" as const),
+    partitioned: secureCookies,
+    path: "/",
+  };
+
+  function setSessionCookie(
+    reply: FastifyReply,
+    user: { id: string; email: string },
+  ) {
+    const token = app.jwt.sign(
+      { email: user.email, tokenUse: "session" },
+      { sub: user.id, expiresIn: "30d" },
+    );
+    reply.setCookie(sessionCookieName, token, {
+      ...sessionCookieOptions,
+      maxAge: sessionCookieMaxAgeSeconds,
+    });
+  }
+
+  function clearSessionCookie(reply: FastifyReply) {
+    reply.clearCookie(sessionCookieName, {
+      ...sessionCookieOptions,
+      maxAge: 0,
+    });
+  }
+
+  function createAuthResponse(user: { id: string; email: string }) {
+    const accessToken = app.jwt.sign({ email: user.email }, { sub: user.id });
+    return { accessToken, user: { id: user.id, email: user.email } };
+  }
+
+  async function requireTrustedOrigin(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    const origin = request.headers.origin;
+    if (origin && origin !== webOrigin) {
+      return reply.code(403).send({ error: "Origem não autorizada." });
+    }
+  }
 
   app.get("/api/health", async () => ({ status: "ok" }));
 
   app.post<{ Body: RegisterBody }>(
     "/api/auth/register",
     {
+      preHandler: requireTrustedOrigin,
       config: { rateLimit: { max: options.authRateLimitMax ?? 5 } },
       schema: {
         body: {
@@ -287,12 +344,8 @@ export async function buildApp(options: AppOptions) {
       try {
         const passwordHash = await hashPassword(request.body.password);
         const user = await options.userStore.create(email, passwordHash);
-        const token = app.jwt.sign({ email: user.email }, { sub: user.id });
-
-        return reply.code(201).send({
-          accessToken: token,
-          user: { id: user.id, email: user.email },
-        });
+        setSessionCookie(reply, user);
+        return reply.code(201).send(createAuthResponse(user));
       } catch (error) {
         if (
           typeof error === "object" &&
@@ -312,6 +365,7 @@ export async function buildApp(options: AppOptions) {
   app.post<{ Body: CredentialsBody }>(
     "/api/auth/login",
     {
+      preHandler: requireTrustedOrigin,
       config: { rateLimit: { max: options.authRateLimitMax ?? 5 } },
       schema: { body: credentialsSchema },
     },
@@ -331,8 +385,52 @@ export async function buildApp(options: AppOptions) {
         return reply.code(401).send({ error: "E-mail ou senha incorretos." });
       }
 
-      const accessToken = app.jwt.sign({ email: user.email }, { sub: user.id });
-      return { accessToken, user: { id: user.id, email: user.email } };
+      setSessionCookie(reply, user);
+      return createAuthResponse(user);
+    },
+  );
+
+  app.post(
+    "/api/auth/session",
+    {
+      preHandler: requireTrustedOrigin,
+      config: { rateLimit: { max: options.authRateLimitMax ?? 30 } },
+    },
+    async (request, reply) => {
+      const sessionToken = request.cookies[sessionCookieName];
+      if (!sessionToken) {
+        return reply.code(401).send({ error: "Sessão não encontrada." });
+      }
+
+      let payload: SessionTokenPayload;
+      try {
+        payload = app.jwt.verify<SessionTokenPayload>(sessionToken);
+      } catch {
+        clearSessionCookie(reply);
+        return reply.code(401).send({ error: "Sessão expirada." });
+      }
+
+      if (payload.tokenUse !== "session" || !payload.sub || !payload.email) {
+        clearSessionCookie(reply);
+        return reply.code(401).send({ error: "Sessão inválida." });
+      }
+      const user = await options.userStore.findById(payload.sub);
+      if (!user || user.email !== payload.email) {
+        clearSessionCookie(reply);
+        return reply.code(401).send({ error: "Sessão inválida." });
+      }
+
+      setSessionCookie(reply, user);
+      return createAuthResponse(user);
+    },
+  );
+
+  app.post(
+    "/api/auth/logout",
+    { preHandler: requireTrustedOrigin },
+    async (_request, reply) => {
+      clearSessionCookie(reply);
+      return reply.code(204).send();
     },
   );
 

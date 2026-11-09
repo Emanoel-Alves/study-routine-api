@@ -82,6 +82,7 @@ describe("API fundamentals", () => {
     });
 
     assert.equal(response.headers["access-control-allow-origin"], webOrigin);
+    assert.equal(response.headers["access-control-allow-credentials"], "true");
   });
 
   it("allows authenticated PATCH requests from the configured frontend", async () => {
@@ -97,6 +98,7 @@ describe("API fundamentals", () => {
 
     assert.equal(response.statusCode, 204);
     assert.equal(response.headers["access-control-allow-origin"], webOrigin);
+    assert.equal(response.headers["access-control-allow-credentials"], "true");
     assert.match(
       response.headers["access-control-allow-methods"] ?? "",
       /\bPATCH\b/,
@@ -116,6 +118,13 @@ describe("API fundamentals", () => {
     });
 
     assert.equal(response.headers["access-control-allow-origin"], undefined);
+
+    const forgedLogout = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { origin: untrustedOrigin },
+    });
+    assert.equal(forgedLogout.statusCode, 403);
   });
 
   it("requires authentication to access the current user", async () => {
@@ -159,6 +168,15 @@ describe("API fundamentals", () => {
     }>();
     assert.equal(registrationBody.user.email, "student@example.com");
     assert.equal("passwordHash" in registrationBody.user, false);
+    const setCookie = registration.headers["set-cookie"];
+    assert.ok(setCookie);
+    const cookieHeader = (
+      Array.isArray(setCookie) ? setCookie[0] : setCookie
+    )?.split(";")[0];
+    assert.ok(cookieHeader);
+    assert.match(setCookie.toString(), /HttpOnly/i);
+    assert.match(setCookie.toString(), /SameSite=Lax/i);
+    assert.match(setCookie.toString(), /Max-Age=2592000/i);
 
     const identity = await app.inject({
       method: "GET",
@@ -167,6 +185,62 @@ describe("API fundamentals", () => {
     });
     assert.equal(identity.statusCode, 200);
     assert.deepEqual(identity.json(), { user: registrationBody.user });
+
+    const restored = await app.inject({
+      method: "POST",
+      url: "/api/auth/session",
+      headers: { cookie: cookieHeader },
+    });
+    assert.equal(restored.statusCode, 200);
+    assert.deepEqual(
+      restored.json<{ user: unknown }>().user,
+      registrationBody.user,
+    );
+    assert.ok(restored.json<{ accessToken: string }>().accessToken);
+
+    const logout = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { cookie: cookieHeader },
+    });
+    assert.equal(logout.statusCode, 204);
+    assert.match(logout.headers["set-cookie"]?.toString() ?? "", /Max-Age=0/i);
+  });
+
+  it("uses secure cross-site cookies for an HTTPS frontend", async () => {
+    const secureApp = await buildApp({
+      webOrigin: "https://study.example",
+      jwtSecret: "a-test-secret-that-is-long-enough-for-hs256",
+      inviteCode,
+      userStore: new MemoryUserStore(),
+      contentStore: new MemoryContentStore(),
+      planningStore: new MemoryPlanningStore(),
+    });
+    await secureApp.ready();
+    try {
+      const response = await secureApp.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: "secure@example.com",
+          password: "a-very-long-password",
+          inviteCode,
+        },
+      });
+
+      assert.equal(response.statusCode, 201);
+      assert.match(response.headers["set-cookie"]?.toString() ?? "", /Secure/i);
+      assert.match(
+        response.headers["set-cookie"]?.toString() ?? "",
+        /SameSite=None/i,
+      );
+      assert.match(
+        response.headers["set-cookie"]?.toString() ?? "",
+        /Partitioned/i,
+      );
+    } finally {
+      await secureApp.close();
+    }
   });
 
   it("authenticates with the password and rejects incorrect passwords", async () => {
@@ -181,6 +255,10 @@ describe("API fundamentals", () => {
 
     assert.equal(validLogin.statusCode, 200);
     assert.ok(validLogin.json<{ accessToken: string }>().accessToken);
+    assert.match(
+      validLogin.headers["set-cookie"]?.toString() ?? "",
+      /HttpOnly/i,
+    );
 
     const invalidLogin = await app.inject({
       method: "POST",

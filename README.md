@@ -33,9 +33,9 @@ O serviço inicia em `http://localhost:3000`. O endpoint `GET /api/health` confi
 
 ## Autenticação
 
-O cadastro não é público: exige um `INVITE_CODE` de pelo menos 24 caracteres. As contas usam e-mail e senha com pelo menos 12 caracteres; senhas são armazenadas com scrypt e sal aleatório. A API limita tentativas e emite tokens bearer com validade de uma hora. `JWT_SECRET` deve ter pelo menos 32 bytes aleatórios.
+O cadastro não é público: exige um `INVITE_CODE` de pelo menos 24 caracteres. As contas usam e-mail e senha com pelo menos 12 caracteres; senhas são armazenadas com scrypt e sal aleatório. A API limita tentativas e emite tokens bearer com validade de uma hora, mantendo a sessão por até 30 dias em um cookie JWT `HttpOnly`. Em uma origem HTTPS, o cookie usa `Secure`, `SameSite=None` e `Partitioned` para o frontend em domínio diferente; localmente, usa `SameSite=Lax`. Configure `WEB_ORIGIN` com a origem exata do frontend: CORS aceita credenciais somente dessa origem. O navegador ainda pode bloquear cookies entre sites conforme suas políticas de privacidade.
 
-O endpoint `GET /api/auth/me` exige um token válido. Todas as rotas de conteúdo usam o identificador derivado do token em consultas e alterações; nunca confie em um identificador de usuário enviado pelo cliente.
+`POST /api/auth/session` valida o cookie e emite um novo token bearer após recarregar a página. `POST /api/auth/logout` encerra o cookie; `GET /api/auth/me` exige um token bearer válido. Todas as rotas de conteúdo usam o identificador derivado do token em consultas e alterações; nunca confie em um identificador de usuário enviado pelo cliente.
 
 ## Conteúdo de estudo
 
