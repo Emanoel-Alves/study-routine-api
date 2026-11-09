@@ -720,6 +720,67 @@ describe("study content API", () => {
     });
     assert.equal(adjusted.statusCode, 200);
 
+    const createdPlan = await contentApp.inject({
+      method: "POST",
+      url: "/api/planning/plans",
+      headers,
+      payload: { name: "Concurso UFC 2027" },
+    });
+    assert.equal(createdPlan.statusCode, 201);
+    const newPlan = createdPlan.json<{
+      id: string;
+      name: string;
+      active: boolean;
+      preferences: {
+        studyDays: number[];
+        minutesPerDay: number;
+        targetDate: string | null;
+      };
+    }>();
+    assert.equal(newPlan.name, "Concurso UFC 2027");
+    assert.equal(newPlan.active, true);
+    assert.equal(newPlan.preferences.minutesPerDay, 60);
+    assert.deepEqual(newPlan.preferences.studyDays, [0, 1, 2, 3, 4]);
+
+    const alternatePlanResponse = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const alternatePlan = alternatePlanResponse.json<{
+      plan: {
+        days: { topics: { topicId: string; manuallyScheduled: boolean }[] }[];
+        unscheduledTopics: { topicId: string; manuallyScheduled: boolean }[];
+      };
+    }>();
+    const alternateTopic = [
+      ...alternatePlan.plan.days.flatMap((day) => day.topics),
+      ...alternatePlan.plan.unscheduledTopics,
+    ].find((topic) => topic.topicId === plannedTopic.topicId);
+    assert.ok(alternateTopic);
+    assert.equal(alternateTopic.manuallyScheduled, false);
+
+    const reactivatedOldPlan = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/plans/default/activate",
+      headers,
+    });
+    assert.equal(reactivatedOldPlan.statusCode, 200);
+    const originalPlanResponse = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const originalPlan = originalPlanResponse.json<{
+      plan: {
+        days: { topics: { topicId: string; manuallyScheduled: boolean }[] }[];
+      };
+    }>();
+    const originalTopic = originalPlan.plan.days
+      .flatMap((day) => day.topics)
+      .find((topic) => topic.topicId === plannedTopic.topicId);
+    assert.equal(originalTopic?.manuallyScheduled, true);
+
     const completedReview = await contentApp.inject({
       method: "POST",
       url: `/api/topics/${plannedTopic.topicId}/sessions`,
@@ -818,5 +879,84 @@ describe("study content API", () => {
     }>().plan;
     assert.equal(accumulatedPlan.weeklyStudiedMinutes, 51);
     assert.equal(accumulatedPlan.weeklySessionCount, 4);
+
+    const previousPlanning = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const previousPlan = previousPlanning.json<{
+      activePlan: { id: string; name: string };
+      preferences: {
+        studyDays: number[];
+        minutesPerDay: number;
+        targetDate: string | null;
+      };
+    }>();
+    assert.equal(previousPlan.activePlan.id, "default");
+
+    const activatedNewPlan = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/planning/plans/${newPlan.id}/activate`,
+      headers,
+    });
+    assert.equal(activatedNewPlan.statusCode, 200);
+
+    const newPlanPreferences = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/preferences",
+      headers,
+      payload: {
+        studyDays: [todayWeekday],
+        minutesPerDay: 30,
+        targetDate: null,
+      },
+    });
+    assert.equal(newPlanPreferences.statusCode, 200);
+
+    const restoredOldPlan = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/plans/default/activate",
+      headers,
+    });
+    assert.equal(restoredOldPlan.statusCode, 200);
+    const restoredPlanning = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const restored = restoredPlanning.json<{
+      plans: { id: string; active: boolean }[];
+      activePlan: { id: string };
+      preferences: {
+        studyDays: number[];
+        minutesPerDay: number;
+        targetDate: string | null;
+      };
+      sessions: { id: string }[];
+    }>();
+    assert.equal(restored.activePlan.id, "default");
+    assert.equal(
+      restored.preferences.minutesPerDay,
+      previousPlan.preferences.minutesPerDay,
+    );
+    assert.deepEqual(
+      restored.preferences.studyDays,
+      previousPlan.preferences.studyDays,
+    );
+    assert.equal(restored.plans.length, 2);
+    assert.equal(
+      restored.plans.find((plan) => plan.id === "default")?.active,
+      true,
+    );
+    assert.equal(restored.sessions.length, 4);
+
+    const otherUserToken = await register("other-planning-owner@example.com");
+    const inaccessiblePlan = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/planning/plans/${newPlan.id}/activate`,
+      headers: { authorization: `Bearer ${otherUserToken}` },
+    });
+    assert.equal(inaccessiblePlan.statusCode, 404);
   });
 });

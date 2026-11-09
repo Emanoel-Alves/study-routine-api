@@ -51,6 +51,10 @@ Os estados de tópico são `not_started`, `in_progress`, `studied` e `review_pen
 
 As sessões cronometradas podem enviar `durationSeconds`, preservando a duração medida; sessões manuais usam `durationMinutes`. O resumo semanal soma segundos e exibe apenas minutos completos, sem arredondar cada sessão curta para cima. Sessões antigas, sem `durationSeconds`, continuam sendo lidas como minutos inteiros.
 
+## Planejamentos
+
+`GET /api/planning/plans`, `POST /api/planning/plans` e `PATCH /api/planning/plans/:planId/activate` permitem listar, criar e selecionar perfis de planejamento. Cada perfil mantém nome, disponibilidade, data-alvo e ajustes manuais independentes; criar um perfil o ativa e usa os dias e minutos padrão. A primeira leitura converte as preferências legadas da conta para o perfil `default` sem apagá-las, e os ajustes antigos desse perfil continuam disponíveis. O conteúdo, o estado/progresso dos tópicos e o histórico de sessões permanecem compartilhados entre os perfis.
+
 ## Banco de questões
 
 `GET /api/questions`, `POST /api/questions`, `PATCH /api/questions/:questionId` e `DELETE /api/questions/:questionId` mantêm questões vinculadas a tópicos da conta autenticada. Cada registro guarda enunciado, alternativas, índice do gabarito, explicação, banca, concurso, cargo, ano, número, link da fonte e situação (`active`, `annulled` ou `outdated`). O endpoint exige uma URL HTTP(S) de fonte e valida a quantidade de alternativas e o gabarito. Remover uma disciplina ou tópico remove também as questões associadas.

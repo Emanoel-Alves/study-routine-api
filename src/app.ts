@@ -100,6 +100,10 @@ interface PlanItemBody {
   plannedDate: string;
 }
 
+interface StudyPlanBody {
+  name: string;
+}
+
 interface QuestionBody {
   topicId: string;
   statement: string;
@@ -156,6 +160,13 @@ const questionParamsSchema = {
   required: ["questionId"],
   additionalProperties: false,
   properties: { questionId: { type: "string", minLength: 1, maxLength: 64 } },
+} as const;
+
+const studyPlanParamsSchema = {
+  type: "object",
+  required: ["planId"],
+  additionalProperties: false,
+  properties: { planId: { type: "string", minLength: 1, maxLength: 64 } },
 } as const;
 
 const studyStatuses = [
@@ -668,9 +679,76 @@ export async function buildApp(options: AppOptions) {
   );
 
   app.get(
+    "/api/planning/plans",
+    { preHandler: requireAuthentication },
+    async (request) => {
+      const plans = await options.planningStore.listPlans(request.user.sub);
+      return {
+        plans,
+        activePlanId:
+          plans.find((plan) => plan.active)?.id ?? plans[0]?.id ?? null,
+      };
+    },
+  );
+
+  app.post<{ Body: StudyPlanBody }>(
+    "/api/planning/plans",
+    {
+      preHandler: requireAuthentication,
+      schema: {
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name"],
+          properties: { name: { type: "string", minLength: 1, maxLength: 80 } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const name = request.body.name.trim();
+      if (!name) {
+        return reply.code(400).send({ error: "Informe um nome para o plano." });
+      }
+      if (name.length > 80) {
+        return reply.code(400).send({
+          error: "O nome do planejamento deve ter até 80 caracteres.",
+        });
+      }
+      const plan = await options.planningStore.createPlan(
+        request.user.sub,
+        name,
+      );
+      return reply.code(201).send(plan);
+    },
+  );
+
+  app.patch<{ Params: { planId: string } }>(
+    "/api/planning/plans/:planId/activate",
+    {
+      preHandler: requireAuthentication,
+      schema: { params: studyPlanParamsSchema },
+    },
+    async (request, reply) => {
+      const plan = await options.planningStore.activatePlan(
+        request.user.sub,
+        request.params.planId,
+      );
+      if (!plan) {
+        return reply.code(404).send({ error: "Planejamento não encontrado." });
+      }
+      return plan;
+    },
+  );
+
+  app.get(
     "/api/planning/preferences",
     { preHandler: requireAuthentication },
-    async (request) => options.planningStore.getPreferences(request.user.sub),
+    async (request) => {
+      const activePlan = await options.planningStore.getActivePlan(
+        request.user.sub,
+      );
+      return activePlan.preferences;
+    },
   );
 
   app.patch<{ Body: PreferencesBody }>(
@@ -710,8 +788,12 @@ export async function buildApp(options: AppOptions) {
           error: "Informe uma data-alvo válida no formato AAAA-MM-DD.",
         });
       }
+      const activePlan = await options.planningStore.getActivePlan(
+        request.user.sub,
+      );
       return options.planningStore.savePreferences(
         request.user.sub,
+        activePlan.id,
         preferences,
       );
     },
@@ -722,10 +804,14 @@ export async function buildApp(options: AppOptions) {
     { preHandler: requireAuthentication },
     async (request) => {
       const userId = request.user.sub;
-      const [content, preferences] = await Promise.all([
+      const [content, plans] = await Promise.all([
         options.contentStore.listContent(userId),
-        options.planningStore.getPreferences(userId),
+        options.planningStore.listPlans(userId),
       ]);
+      const activePlan = plans.find((plan) => plan.active) ?? plans[0];
+      if (!activePlan) {
+        throw new Error("Não foi possível carregar o planejamento ativo.");
+      }
       const now = new Date();
       for (const topic of content.topics) {
         if (
@@ -749,16 +835,31 @@ export async function buildApp(options: AppOptions) {
         .slice(0, 10);
       const [sessions, overrides] = await Promise.all([
         options.planningStore.listSessions(userId, weekStart, weekEnd),
-        options.planningStore.listPlanOverrides(userId, weekStart),
+        options.planningStore.listPlanOverrides(
+          userId,
+          activePlan.id,
+          weekStart,
+        ),
       ]);
       const plan = generateWeeklyPlan(
         content,
-        preferences,
+        activePlan.preferences,
         sessions,
         overrides,
         now,
       );
-      return { preferences, plan, sessions };
+      return {
+        plans: plans.map(({ id, name, active, createdAt }) => ({
+          id,
+          name,
+          active,
+          createdAt,
+        })),
+        activePlan: { id: activePlan.id, name: activePlan.name },
+        preferences: activePlan.preferences,
+        plan,
+        sessions,
+      };
     },
   );
 
@@ -788,7 +889,8 @@ export async function buildApp(options: AppOptions) {
           error: "Tópico ativo não encontrado para ajustar o plano.",
         });
       }
-      const preferences = await options.planningStore.getPreferences(userId);
+      const activePlan = await options.planningStore.getActivePlan(userId);
+      const preferences = activePlan.preferences;
       const weekStart = startOfWeek(new Date());
       const weekEnd = new Date(
         Date.parse(`${weekStart}T00:00:00.000Z`) + 6 * 24 * 60 * 60 * 1000,
@@ -813,6 +915,7 @@ export async function buildApp(options: AppOptions) {
       }
       return options.planningStore.savePlanOverride(
         userId,
+        activePlan.id,
         topic.id,
         weekStart,
         request.body.plannedDate,
@@ -828,8 +931,12 @@ export async function buildApp(options: AppOptions) {
     },
     async (request, reply) => {
       const weekStart = startOfWeek(new Date());
+      const activePlan = await options.planningStore.getActivePlan(
+        request.user.sub,
+      );
       const deleted = await options.planningStore.deletePlanOverride(
         request.user.sub,
+        activePlan.id,
         request.params.topicId,
         weekStart,
       );
