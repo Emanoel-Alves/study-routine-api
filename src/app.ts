@@ -14,6 +14,10 @@ import type {
 import type { PlanningStore, StudyPreferences } from "./planning.ts";
 import { generateWeeklyPlan, startOfWeek } from "./planner.ts";
 import { hashPassword, verifyPassword } from "./password.ts";
+import {
+  UFC_GOVERNANCE_QUESTIONS,
+  UFC_GOVERNANCE_QUESTION_SOURCE,
+} from "./ufc-governance-questions.ts";
 import type {
   QuestionSource,
   QuestionStatus,
@@ -96,6 +100,8 @@ interface SessionBody {
   notes?: string;
 }
 
+type BulkSessionDeletionBody = { all: true } | { sessionIds: string[] };
+
 interface PlanItemBody {
   plannedDate: string;
 }
@@ -172,6 +178,13 @@ const studyPlanParamsSchema = {
   required: ["planId"],
   additionalProperties: false,
   properties: { planId: { type: "string", minLength: 1, maxLength: 64 } },
+} as const;
+
+const sessionParamsSchema = {
+  type: "object",
+  required: ["sessionId"],
+  additionalProperties: false,
+  properties: { sessionId: { type: "string", pattern: "^[a-fA-F0-9]{24}$" } },
 } as const;
 
 const studyStatuses = [
@@ -499,6 +512,82 @@ export async function buildApp(options: AppOptions) {
     "/api/questions",
     { preHandler: requireAuthentication },
     async (request) => options.questionStore.listQuestions(request.user.sub),
+  );
+
+  app.post(
+    "/api/questions/import-ufc-governance",
+    { preHandler: requireAuthentication },
+    async (request, reply) => {
+      const userId = request.user.sub;
+      const [content, existingQuestions] = await Promise.all([
+        options.contentStore.listContent(userId),
+        options.questionStore.listQuestions(userId),
+      ]);
+      const activeSubjectIds = new Set(
+        content.subjects
+          .filter((subject) => !subject.archived)
+          .map((subject) => subject.id),
+      );
+      const activeTopics = content.topics.filter((topic) =>
+        activeSubjectIds.has(topic.subjectId),
+      );
+      const topicByName = new Map(
+        activeTopics.map((topic) => [normalizeText(topic.name), topic]),
+      );
+      const missingTopics = [
+        ...new Set(
+          UFC_GOVERNANCE_QUESTIONS.filter(
+            (question) => !topicByName.has(normalizeText(question.topicName)),
+          ).map((question) => question.topicName),
+        ),
+      ];
+      if (missingTopics.length > 0) {
+        return reply.code(409).send({
+          error:
+            "Importe a matriz de estudos antes de adicionar este conjunto de questões.",
+          missingTopics,
+        });
+      }
+
+      const existingKeys = new Set(
+        existingQuestions
+          .filter(
+            (question) =>
+              question.source.name === UFC_GOVERNANCE_QUESTION_SOURCE,
+          )
+          .map((question) => question.source.number),
+      );
+      let createdCount = 0;
+      let existingCount = 0;
+      for (const seed of UFC_GOVERNANCE_QUESTIONS) {
+        if (existingKeys.has(seed.source.number)) {
+          existingCount++;
+          continue;
+        }
+        const topic = topicByName.get(normalizeText(seed.topicName));
+        if (!topic) {
+          throw new Error(
+            `O tópico "${seed.topicName}" desapareceu durante a importação.`,
+          );
+        }
+        await options.questionStore.createQuestion(userId, topic.subjectId, {
+          topicId: topic.id,
+          statement: seed.statement,
+          options: seed.options,
+          correctOption: seed.correctOption,
+          explanation: seed.explanation,
+          source: seed.source,
+          status: seed.status,
+          statusNote: seed.statusNote,
+        });
+        createdCount++;
+      }
+      return {
+        createdCount,
+        existingCount,
+        totalCount: UFC_GOVERNANCE_QUESTIONS.length,
+      };
+    },
   );
 
   app.post<{ Body: QuestionBody }>(
@@ -948,7 +1037,12 @@ export async function buildApp(options: AppOptions) {
         .toISOString()
         .slice(0, 10);
       const [sessions, overrides] = await Promise.all([
-        options.planningStore.listSessions(userId, weekStart, weekEnd),
+        options.planningStore.listSessions(
+          userId,
+          activePlan.id,
+          weekStart,
+          weekEnd,
+        ),
         options.planningStore.listPlanOverrides(
           userId,
           activePlan.id,
@@ -1129,7 +1223,9 @@ export async function buildApp(options: AppOptions) {
             "A data da sessão precisa ser válida e não pode estar no futuro.",
         });
       }
+      const activePlan = await options.planningStore.getActivePlan(userId);
       const session = await options.planningStore.createSession(userId, {
+        planId: activePlan.id,
         topicId: topic.id,
         date: sessionDate,
         durationMinutes:
@@ -1154,6 +1250,83 @@ export async function buildApp(options: AppOptions) {
             : { status: "in_progress" },
       );
       return reply.code(201).send({ session, topic: updatedTopic });
+    },
+  );
+
+  app.delete<{ Params: { sessionId: string } }>(
+    "/api/planning/sessions/:sessionId",
+    {
+      preHandler: requireAuthentication,
+      schema: { params: sessionParamsSchema },
+    },
+    async (request, reply) => {
+      const userId = request.user.sub;
+      const activePlan = await options.planningStore.getActivePlan(userId);
+      const deleted = await options.planningStore.deleteSession(
+        userId,
+        activePlan.id,
+        request.params.sessionId,
+      );
+      if (!deleted) {
+        return reply.code(404).send({
+          error: "Sessão não encontrada neste planejamento.",
+        });
+      }
+      return { deleted: true };
+    },
+  );
+
+  app.delete<{ Body: BulkSessionDeletionBody }>(
+    "/api/planning/sessions",
+    {
+      preHandler: requireAuthentication,
+      schema: {
+        body: {
+          oneOf: [
+            {
+              type: "object",
+              required: ["all"],
+              additionalProperties: false,
+              properties: { all: { const: true } },
+            },
+            {
+              type: "object",
+              required: ["sessionIds"],
+              additionalProperties: false,
+              properties: {
+                sessionIds: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 500,
+                  uniqueItems: true,
+                  items: {
+                    type: "string",
+                    pattern: "^[a-fA-F0-9]{24}$",
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    async (request) => {
+      const userId = request.user.sub;
+      const activePlan = await options.planningStore.getActivePlan(userId);
+      const weekStart = startOfWeek(new Date());
+      const weekEnd = new Date(
+        Date.parse(`${weekStart}T00:00:00.000Z`) + 6 * 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+      const deletedCount = await options.planningStore.deleteSessions(
+        userId,
+        activePlan.id,
+        weekStart,
+        weekEnd,
+        "sessionIds" in request.body ? request.body.sessionIds : undefined,
+      );
+      return { deletedCount };
     },
   );
 

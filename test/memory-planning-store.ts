@@ -148,7 +148,7 @@ export class MemoryPlanningStore implements PlanningStore {
   ): Promise<StudySession> {
     const session: StudySession = {
       ...input,
-      id: String(this.nextId++),
+      id: String(this.nextId++).padStart(24, "0"),
       createdAt: new Date(),
     };
     this.sessions.set(userId, [...(this.sessions.get(userId) ?? []), session]);
@@ -157,12 +157,52 @@ export class MemoryPlanningStore implements PlanningStore {
 
   async listSessions(
     userId: string,
+    planId: string,
     startDate: string,
     endDate: string,
   ): Promise<StudySession[]> {
     return (this.sessions.get(userId) ?? []).filter(
-      (session) => session.date >= startDate && session.date <= endDate,
+      (session) =>
+        session.planId === planId &&
+        session.date >= startDate &&
+        session.date <= endDate,
     );
+  }
+
+  async deleteSession(
+    userId: string,
+    planId: string,
+    sessionId: string,
+  ): Promise<boolean> {
+    const sessions = this.sessions.get(userId) ?? [];
+    const index = sessions.findIndex(
+      (session) => session.planId === planId && session.id === sessionId,
+    );
+    if (index < 0) return false;
+    sessions.splice(index, 1);
+    this.sessions.set(userId, sessions);
+    return true;
+  }
+
+  async deleteSessions(
+    userId: string,
+    planId: string,
+    startDate: string,
+    endDate: string,
+    sessionIds?: string[],
+  ): Promise<number> {
+    const sessions = this.sessions.get(userId) ?? [];
+    const selectedIds = sessionIds ? new Set(sessionIds) : null;
+    const remaining = sessions.filter(
+      (session) =>
+        session.planId !== planId ||
+        session.date < startDate ||
+        session.date > endDate ||
+        (selectedIds !== null && !selectedIds.has(session.id)),
+    );
+    const deletedCount = sessions.length - remaining.length;
+    this.sessions.set(userId, remaining);
+    return deletedCount;
   }
 
   async listPlanOverrides(

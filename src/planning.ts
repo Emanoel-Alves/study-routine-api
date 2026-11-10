@@ -17,6 +17,7 @@ export interface StudyPlan {
 
 export interface StudySession {
   id: string;
+  planId: string;
   topicId: string;
   date: string;
   durationMinutes: number;
@@ -63,9 +64,22 @@ export interface PlanningStore {
   ): Promise<StudySession>;
   listSessions(
     userId: string,
+    planId: string,
     startDate: string,
     endDate: string,
   ): Promise<StudySession[]>;
+  deleteSession(
+    userId: string,
+    planId: string,
+    sessionId: string,
+  ): Promise<boolean>;
+  deleteSessions(
+    userId: string,
+    planId: string,
+    startDate: string,
+    endDate: string,
+    sessionIds?: string[],
+  ): Promise<number>;
   listPlanOverrides(
     userId: string,
     planId: string,
@@ -118,6 +132,7 @@ interface StudyPlanStateDocument {
 interface StudySessionDocument {
   _id: ObjectId;
   userId: string;
+  planId?: string;
   topicId: string;
   date: string;
   durationMinutes: number;
@@ -387,14 +402,65 @@ export class MongoPlanningStore implements PlanningStore {
 
   async listSessions(
     userId: string,
+    planId: string,
     startDate: string,
     endDate: string,
   ): Promise<StudySession[]> {
+    const planFilter =
+      planId === "default"
+        ? { $or: [{ planId }, { planId: { $exists: false } }] }
+        : { planId };
     const documents = await this.sessions
-      .find({ userId, date: { $gte: startDate, $lte: endDate } })
+      .find({
+        userId,
+        date: { $gte: startDate, $lte: endDate },
+        ...planFilter,
+      })
       .sort({ date: 1, createdAt: 1 })
       .toArray();
     return documents.map(toSession);
+  }
+
+  async deleteSession(
+    userId: string,
+    planId: string,
+    sessionId: string,
+  ): Promise<boolean> {
+    if (!ObjectId.isValid(sessionId)) return false;
+    const planFilter =
+      planId === "default"
+        ? { $or: [{ planId }, { planId: { $exists: false } }] }
+        : { planId };
+    const result = await this.sessions.deleteOne({
+      _id: new ObjectId(sessionId),
+      userId,
+      ...planFilter,
+    });
+    return result.deletedCount > 0;
+  }
+
+  async deleteSessions(
+    userId: string,
+    planId: string,
+    startDate: string,
+    endDate: string,
+    sessionIds?: string[],
+  ): Promise<number> {
+    const validIds = sessionIds?.filter((id) => ObjectId.isValid(id));
+    if (sessionIds && validIds?.length !== sessionIds.length) return 0;
+    const planFilter =
+      planId === "default"
+        ? { $or: [{ planId }, { planId: { $exists: false } }] }
+        : { planId };
+    const result = await this.sessions.deleteMany({
+      userId,
+      date: { $gte: startDate, $lte: endDate },
+      ...planFilter,
+      ...(validIds
+        ? { _id: { $in: validIds.map((id) => new ObjectId(id)) } }
+        : {}),
+    });
+    return result.deletedCount;
   }
 
   async listPlanOverrides(
@@ -525,6 +591,7 @@ function toStudyPlan(document: StudyPlanDocument): StudyPlan {
 function toSession(document: StudySessionDocument): StudySession {
   return {
     id: document._id.toHexString(),
+    planId: document.planId ?? "default",
     topicId: document.topicId,
     date: document.date,
     durationMinutes: document.durationMinutes,

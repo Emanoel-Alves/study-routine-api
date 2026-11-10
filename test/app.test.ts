@@ -613,6 +613,65 @@ describe("study content API", () => {
     assert.equal(firstResult.topicsCreated, firstResult.topicsInMatrix);
     assert.ok(firstResult.materialsCreated >= firstResult.subjectsInMatrix);
 
+    const importedQuestions = await contentApp.inject({
+      method: "POST",
+      url: "/api/questions/import-ufc-governance",
+      headers,
+    });
+    assert.equal(importedQuestions.statusCode, 200);
+    assert.deepEqual(importedQuestions.json(), {
+      createdCount: 30,
+      existingCount: 0,
+      totalCount: 30,
+    });
+    const importedQuestionList = await contentApp.inject({
+      method: "GET",
+      url: "/api/questions",
+      headers,
+    });
+    const ufcQuestions = importedQuestionList.json<
+      {
+        topicId: string;
+        statement: string;
+        options: string[];
+        correctOption: number;
+        source: { name: string; number: string };
+      }[]
+    >();
+    assert.equal(ufcQuestions.length, 30);
+    assert.ok(
+      ufcQuestions.every(
+        (question) =>
+          question.source.name ===
+            "Questões autorais — temas da prova UFC/FCPC 2025" &&
+          question.source.number.includes("adaptação autoral") &&
+          question.options.length === 5 &&
+          question.correctOption >= 0 &&
+          question.correctOption < question.options.length,
+      ),
+    );
+    const adaptedQuestions = ufcQuestions
+      .filter((question) => question.source.number.startsWith("Questão "))
+      .sort((left, right) => {
+        const leftNumber = Number(left.source.number.match(/\d+/)?.[0]);
+        const rightNumber = Number(right.source.number.match(/\d+/)?.[0]);
+        return leftNumber - rightNumber;
+      });
+    assert.deepEqual(
+      adaptedQuestions.map((question) => question.correctOption),
+      [0, 1, 3, 0, 3, 0, 1, 2, 1, 3, 0, 1, 3, 2, 2, 2, 1, 0, 3, 2],
+    );
+    const repeatedQuestionImport = await contentApp.inject({
+      method: "POST",
+      url: "/api/questions/import-ufc-governance",
+      headers,
+    });
+    assert.deepEqual(repeatedQuestionImport.json(), {
+      createdCount: 0,
+      existingCount: 30,
+      totalCount: 30,
+    });
+
     const snapshot = await contentApp.inject({
       method: "GET",
       url: "/api/content",
@@ -682,6 +741,126 @@ describe("study content API", () => {
       subjectsInMatrix: firstResult.subjectsInMatrix,
       topicsInMatrix: firstResult.topicsInMatrix,
     });
+  });
+
+  it("deletes selected or all weekly sessions only from the active plan", async () => {
+    const token = await register("bulk-session-owner@example.com");
+    const headers = { authorization: `Bearer ${token}` };
+    const subjectResponse = await contentApp.inject({
+      method: "POST",
+      url: "/api/subjects",
+      headers,
+      payload: { name: "Matemática", description: "" },
+    });
+    const subject = subjectResponse.json<{ id: string }>();
+    const topicResponse = await contentApp.inject({
+      method: "POST",
+      url: `/api/subjects/${subject.id}/topics`,
+      headers,
+      payload: { name: "Álgebra" },
+    });
+    const topic = topicResponse.json<{ id: string }>();
+    const today = new Date().toISOString().slice(0, 10);
+    const previousWeek = new Date(
+      Date.parse(`${today}T00:00:00.000Z`) - 7 * 24 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .slice(0, 10);
+
+    async function addSession(date: string): Promise<string> {
+      const response = await contentApp.inject({
+        method: "POST",
+        url: `/api/topics/${topic.id}/sessions`,
+        headers,
+        payload: { kind: "study", date, durationMinutes: 10 },
+      });
+      assert.equal(response.statusCode, 201);
+      return response.json<{ session: { id: string } }>().session.id;
+    }
+
+    const defaultPlanSessionId = await addSession(today);
+    const createdPlan = await contentApp.inject({
+      method: "POST",
+      url: "/api/planning/plans",
+      headers,
+      payload: { name: "Plano de Matemática", topicIds: [topic.id] },
+    });
+    assert.equal(createdPlan.statusCode, 201);
+    const selectedSessionId = await addSession(today);
+    await addSession(today);
+    const previousWeekSessionId = await addSession(previousWeek);
+
+    const cannotDeleteOtherPlanSession = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/sessions",
+      headers,
+      payload: { sessionIds: [defaultPlanSessionId] },
+    });
+    assert.equal(cannotDeleteOtherPlanSession.statusCode, 200);
+    assert.deepEqual(cannotDeleteOtherPlanSession.json(), { deletedCount: 0 });
+
+    const deleteSelected = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/sessions",
+      headers,
+      payload: { sessionIds: [selectedSessionId] },
+    });
+    assert.equal(deleteSelected.statusCode, 200);
+    assert.deepEqual(deleteSelected.json(), { deletedCount: 1 });
+
+    const selectedDeletionDidNotReachOtherWeek = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/sessions",
+      headers,
+      payload: { sessionIds: [previousWeekSessionId] },
+    });
+    assert.equal(selectedDeletionDidNotReachOtherWeek.statusCode, 200);
+    assert.deepEqual(selectedDeletionDidNotReachOtherWeek.json(), {
+      deletedCount: 0,
+    });
+
+    const deleteAll = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/sessions",
+      headers,
+      payload: { all: true },
+    });
+    assert.equal(deleteAll.statusCode, 200);
+    assert.deepEqual(deleteAll.json(), { deletedCount: 1 });
+
+    const remainingPlanSessions = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    assert.deepEqual(
+      remainingPlanSessions.json<{ sessions: { id: string }[] }>().sessions,
+      [],
+    );
+    const reactivatedDefault = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/plans/default/activate",
+      headers,
+    });
+    assert.equal(reactivatedDefault.statusCode, 200);
+
+    const deleteAllDefault = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/sessions",
+      headers,
+      payload: { all: true },
+    });
+    assert.equal(deleteAllDefault.statusCode, 200);
+    assert.deepEqual(deleteAllDefault.json(), { deletedCount: 1 });
+
+    const deletePriorWeek = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/sessions",
+      headers,
+      payload: { sessionIds: [previousWeekSessionId] },
+    });
+    assert.equal(deletePriorWeek.statusCode, 200);
+    assert.deepEqual(deletePriorWeek.json(), { deletedCount: 0 });
   });
 
   it("validates study preferences, schedules topics, preserves sessions, and flags an infeasible deadline", async () => {
@@ -766,6 +945,13 @@ describe("study content API", () => {
       },
     });
     assert.equal(study.statusCode, 201);
+    const initialSessionId = study.json<{
+      session: { id: string; planId: string };
+    }>().session.id;
+    assert.equal(
+      study.json<{ session: { planId: string } }>().session.planId,
+      "default",
+    );
     assert.equal(
       study.json<{ topic: { status: string } }>().topic.status,
       "in_progress",
@@ -823,6 +1009,7 @@ describe("study content API", () => {
     });
     const alternatePlan = alternatePlanResponse.json<{
       activePlan: { selectedTopicIds: string[] | null };
+      sessions: { id: string }[];
       plan: {
         days: { topics: { topicId: string; manuallyScheduled: boolean }[] }[];
         unscheduledTopics: { topicId: string; manuallyScheduled: boolean }[];
@@ -831,6 +1018,13 @@ describe("study content API", () => {
     assert.deepEqual(alternatePlan.activePlan.selectedTopicIds, [
       plannedTopic.topicId,
     ]);
+    assert.deepEqual(alternatePlan.sessions, []);
+    const cannotDeleteOtherPlanSession = await contentApp.inject({
+      method: "DELETE",
+      url: `/api/planning/sessions/${initialSessionId}`,
+      headers,
+    });
+    assert.equal(cannotDeleteOtherPlanSession.statusCode, 404);
     assert.equal(
       alternatePlan.plan.days.reduce(
         (total, day) => total + day.topics.length,
@@ -1109,6 +1303,33 @@ describe("study content API", () => {
       true,
     );
     assert.equal(restored.sessions.length, 4);
+    assert.ok(restored.sessions.some(({ id }) => id === initialSessionId));
+
+    const deleteSession = await contentApp.inject({
+      method: "DELETE",
+      url: `/api/planning/sessions/${initialSessionId}`,
+      headers,
+    });
+    assert.equal(deleteSession.statusCode, 200);
+    assert.deepEqual(deleteSession.json(), { deleted: true });
+    const deleteSessionAgain = await contentApp.inject({
+      method: "DELETE",
+      url: `/api/planning/sessions/${initialSessionId}`,
+      headers,
+    });
+    assert.equal(deleteSessionAgain.statusCode, 404);
+    const afterSessionDeletion = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const deletedSessionPlan = afterSessionDeletion.json<{
+      sessions: { id: string }[];
+      plan: { weeklyStudiedMinutes: number; weeklySessionCount: number };
+    }>();
+    assert.equal(deletedSessionPlan.sessions.length, 3);
+    assert.equal(deletedSessionPlan.plan.weeklyStudiedMinutes, 16);
+    assert.equal(deletedSessionPlan.plan.weeklySessionCount, 3);
 
     const otherUserToken = await register("other-planning-owner@example.com");
     const inaccessiblePlan = await contentApp.inject({
@@ -1161,7 +1382,7 @@ describe("study content API", () => {
       [{ id: "default", active: true }],
     );
     assert.equal(afterPlanDeletion.activePlan.id, "default");
-    assert.equal(afterPlanDeletion.sessions.length, 4);
+    assert.equal(afterPlanDeletion.sessions.length, 3);
 
     const lastPlanDeletion = await contentApp.inject({
       method: "DELETE",
