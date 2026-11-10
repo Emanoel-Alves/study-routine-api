@@ -82,11 +82,8 @@ export function generateWeeklyPlan(
   const subjectsById = new Map(
     content.subjects.map((subject) => [subject.id, subject]),
   );
-  const remaining = content.topics
-    .filter(
-      (topic) =>
-        activeSubjectIds.has(topic.subjectId) && topic.status !== "studied",
-    )
+  const topics = content.topics
+    .filter((topic) => activeSubjectIds.has(topic.subjectId))
     .map((topic) => {
       const estimate =
         "estimatedMinutes" in topic &&
@@ -109,7 +106,10 @@ export function generateWeeklyPlan(
         ),
         manuallyScheduled: false,
       };
-    })
+    });
+  const topicById = new Map(topics.map((topic) => [topic.topicId, topic]));
+  const remaining = topics
+    .filter((topic) => topic.status !== "studied")
     .sort((first, second) => {
       const statusDifference =
         STATUS_PRIORITY[first.status] - STATUS_PRIORITY[second.status];
@@ -144,7 +144,6 @@ export function generateWeeklyPlan(
       ),
     };
   });
-  const topicById = new Map(remaining.map((topic) => [topic.topicId, topic]));
   const overriddenTopicIds = new Set<string>();
 
   for (const override of overrides) {
@@ -152,7 +151,9 @@ export function generateWeeklyPlan(
     const day = days.find((item) => item.date === override.plannedDate);
     if (!topic || !day) continue;
     day.topics.push({ ...topic, manuallyScheduled: true });
-    day.plannedMinutes += topic.estimatedMinutes;
+    if (topic.status !== "studied") {
+      day.plannedMinutes += topic.estimatedMinutes;
+    }
     day.overCapacity = day.plannedMinutes > day.capacityMinutes;
     overriddenTopicIds.add(topic.topicId);
   }
@@ -168,7 +169,7 @@ export function generateWeeklyPlan(
         topic.estimatedMinutes,
     );
     if (!day) {
-      day = availableDays.find((candidate) => candidate.topics.length === 0);
+      day = availableDays.find((candidate) => candidate.plannedMinutes === 0);
     }
     if (!day) continue;
     day.topics.push(topic);

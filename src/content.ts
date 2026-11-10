@@ -4,7 +4,7 @@ export type StudyStatus =
   "not_started" | "in_progress" | "studied" | "review_pending";
 
 export type MaterialType =
-  "video" | "book" | "article" | "questions" | "document" | "other";
+  "video" | "law" | "book" | "article" | "questions" | "document" | "other";
 
 export interface Subject {
   id: string;
@@ -39,6 +39,8 @@ export interface Material {
   type: MaterialType;
   url: string;
   text: string;
+  professor: string;
+  thumbnailUrl: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,6 +70,8 @@ export interface MaterialInput {
   type: MaterialType;
   url: string;
   text: string;
+  professor: string;
+  thumbnailUrl: string;
 }
 
 export interface ContentStore {
@@ -149,6 +153,8 @@ interface MaterialDocument {
   type: MaterialType;
   url: string;
   text: string;
+  professor?: string;
+  thumbnailUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -358,6 +364,8 @@ export class MongoContentStore implements ContentStore {
       type: input.type,
       url: input.url,
       text: input.text,
+      professor: input.professor,
+      thumbnailUrl: input.thumbnailUrl,
       createdAt: now,
       updatedAt: now,
     };
@@ -401,6 +409,8 @@ export class MongoContentStore implements ContentStore {
           type: input.type,
           url: input.url,
           text: input.text,
+          professor: input.professor,
+          thumbnailUrl: input.thumbnailUrl,
           updatedAt: new Date(),
         },
       },
@@ -459,6 +469,8 @@ function toMaterial(document: MaterialDocument): Material {
     type: document.type,
     url: document.url,
     text: document.text,
+    professor: document.professor ?? "",
+    thumbnailUrl: document.thumbnailUrl ?? "",
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
   };

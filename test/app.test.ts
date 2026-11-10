@@ -428,9 +428,33 @@ describe("study content API", () => {
         title: "Aula de princípios",
         type: "video",
         url: "https://example.com/aula",
+        professor: "Professora Ana",
+        thumbnailUrl: "https://example.com/aula.jpg",
       },
     });
     assert.equal(createdMaterial.statusCode, 201);
+    assert.equal(
+      createdMaterial.json<{ professor: string }>().professor,
+      "Professora Ana",
+    );
+    assert.equal(
+      createdMaterial.json<{ thumbnailUrl: string }>().thumbnailUrl,
+      "https://example.com/aula.jpg",
+    );
+
+    const createdLaw = await contentApp.inject({
+      method: "POST",
+      url: `/api/subjects/${subject.id}/materials`,
+      headers: ownerHeaders,
+      payload: {
+        topicId: topic.id,
+        title: "Constituição Federal",
+        type: "law",
+        url: "https://www.planalto.gov.br/",
+      },
+    });
+    assert.equal(createdLaw.statusCode, 201);
+    assert.equal(createdLaw.json<{ type: string }>().type, "law");
 
     const createdQuestion = await contentApp.inject({
       method: "POST",
@@ -571,7 +595,7 @@ describe("study content API", () => {
       snapshotBody.topics[0]?.notes,
       "Revisar o princípio da legalidade.",
     );
-    assert.equal(snapshotBody.materials.length, 1);
+    assert.equal(snapshotBody.materials.length, 2);
 
     const deleted = await contentApp.inject({
       method: "DELETE",
@@ -581,7 +605,7 @@ describe("study content API", () => {
     assert.deepEqual(deleted.json(), {
       deleted: true,
       topics: 1,
-      materials: 1,
+      materials: 2,
     });
     const remainingQuestions = await contentApp.inject({
       method: "GET",

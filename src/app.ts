@@ -84,6 +84,8 @@ interface MaterialBody {
   type: MaterialType;
   url?: string;
   text?: string;
+  professor?: string;
+  thumbnailUrl?: string;
 }
 
 interface PreferencesBody {
@@ -195,6 +197,7 @@ const studyStatuses = [
 ] as const;
 const materialTypes = [
   "video",
+  "law",
   "book",
   "article",
   "questions",
@@ -749,6 +752,8 @@ export async function buildApp(options: AppOptions) {
               type: source.type,
               url: source.url,
               text: source.text,
+              professor: "",
+              thumbnailUrl: "",
             },
           );
           if (material) {
@@ -1649,6 +1654,8 @@ function materialBodySchema() {
       type: { type: "string", enum: materialTypes },
       url: { type: "string", maxLength: 2048 },
       text: { type: "string", maxLength: 20_000 },
+      professor: { type: "string", maxLength: 200 },
+      thumbnailUrl: { type: "string", maxLength: 2048 },
     },
   } as const;
 }
@@ -1660,16 +1667,26 @@ function materialInput(body: MaterialBody): MaterialInput {
     type: body.type,
     url: body.url?.trim() ?? "",
     text: body.text?.trim() ?? "",
+    professor: body.professor?.trim() ?? "",
+    thumbnailUrl: body.thumbnailUrl?.trim() ?? "",
   };
 }
 
 function validateMaterial(input: MaterialInput): string | null {
   if (!input.title) return "Informe o título do material.";
+  if ((input.type === "video" || input.type === "law") && !input.url) {
+    return input.type === "video"
+      ? "Informe o link da videoaula."
+      : "Informe o link da lei ou norma.";
+  }
   if (!input.url && !input.text) {
     return "Informe um link ou um texto para o material.";
   }
   if (input.url && !validHttpUrl(input.url)) {
     return "O link precisa ser um endereço HTTP ou HTTPS válido.";
+  }
+  if (input.thumbnailUrl && !validHttpUrl(input.thumbnailUrl)) {
+    return "O link da miniatura precisa ser um endereço HTTP ou HTTPS válido.";
   }
   return null;
 }
