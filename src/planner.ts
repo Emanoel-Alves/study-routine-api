@@ -162,14 +162,18 @@ export function generateWeeklyPlan(
   );
   for (const topic of remaining) {
     if (overriddenTopicIds.has(topic.topicId)) continue;
-    const day = availableDays.find(
+    let day = availableDays.find(
       (candidate) =>
         candidate.capacityMinutes - candidate.plannedMinutes >=
         topic.estimatedMinutes,
     );
+    if (!day) {
+      day = availableDays.find((candidate) => candidate.topics.length === 0);
+    }
     if (!day) continue;
     day.topics.push(topic);
     day.plannedMinutes += topic.estimatedMinutes;
+    day.overCapacity = day.plannedMinutes > day.capacityMinutes;
   }
 
   const plannedTopicIds = new Set(

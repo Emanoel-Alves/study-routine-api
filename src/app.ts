@@ -102,6 +102,11 @@ interface PlanItemBody {
 
 interface StudyPlanBody {
   name: string;
+  topicIds?: string[];
+}
+
+interface TopicSelectionBody {
+  topicIds: string[];
 }
 
 interface QuestionBody {
@@ -700,7 +705,15 @@ export async function buildApp(options: AppOptions) {
           type: "object",
           additionalProperties: false,
           required: ["name"],
-          properties: { name: { type: "string", minLength: 1, maxLength: 80 } },
+          properties: {
+            name: { type: "string", minLength: 1, maxLength: 80 },
+            topicIds: {
+              type: "array",
+              uniqueItems: true,
+              maxItems: 1000,
+              items: { type: "string", minLength: 1, maxLength: 64 },
+            },
+          },
         },
       },
     },
@@ -714,9 +727,31 @@ export async function buildApp(options: AppOptions) {
           error: "O nome do planejamento deve ter até 80 caracteres.",
         });
       }
+      const topicIds = request.body.topicIds ?? [];
+      if (topicIds.length > 0) {
+        const content = await options.contentStore.listContent(
+          request.user.sub,
+        );
+        const activeSubjectIds = new Set(
+          content.subjects
+            .filter((subject) => !subject.archived)
+            .map((subject) => subject.id),
+        );
+        const availableTopicIds = new Set(
+          content.topics
+            .filter((topic) => activeSubjectIds.has(topic.subjectId))
+            .map((topic) => topic.id),
+        );
+        if (topicIds.some((id) => !availableTopicIds.has(id))) {
+          return reply.code(400).send({
+            error: "Um ou mais tópicos selecionados não estão disponíveis.",
+          });
+        }
+      }
       const plan = await options.planningStore.createPlan(
         request.user.sub,
         name,
+        topicIds,
       );
       return reply.code(201).send(plan);
     },
@@ -737,6 +772,34 @@ export async function buildApp(options: AppOptions) {
         return reply.code(404).send({ error: "Planejamento não encontrado." });
       }
       return plan;
+    },
+  );
+
+  app.delete<{ Params: { planId: string } }>(
+    "/api/planning/plans/:planId",
+    {
+      preHandler: requireAuthentication,
+      schema: { params: studyPlanParamsSchema },
+    },
+    async (request, reply) => {
+      const result = await options.planningStore.deletePlan(
+        request.user.sub,
+        request.params.planId,
+      );
+      if (result === "not_found") {
+        return reply.code(404).send({ error: "Planejamento não encontrado." });
+      }
+      if (result === "default_plan") {
+        return reply.code(409).send({
+          error: "O planejamento padrão não pode ser removido.",
+        });
+      }
+      if (result === "last_plan") {
+        return reply.code(409).send({
+          error: "Não é possível remover o único planejamento da conta.",
+        });
+      }
+      return { deleted: true };
     },
   );
 
@@ -799,6 +862,57 @@ export async function buildApp(options: AppOptions) {
     },
   );
 
+  app.patch<{ Body: TopicSelectionBody }>(
+    "/api/planning/topics",
+    {
+      preHandler: requireAuthentication,
+      schema: {
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["topicIds"],
+          properties: {
+            topicIds: {
+              type: "array",
+              uniqueItems: true,
+              maxItems: 1000,
+              items: { type: "string", minLength: 1, maxLength: 64 },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.user.sub;
+      const [activePlan, content] = await Promise.all([
+        options.planningStore.getActivePlan(userId),
+        options.contentStore.listContent(userId),
+      ]);
+      const activeSubjectIds = new Set(
+        content.subjects
+          .filter((subject) => !subject.archived)
+          .map((subject) => subject.id),
+      );
+      const availableTopicIds = new Set(
+        content.topics
+          .filter((topic) => activeSubjectIds.has(topic.subjectId))
+          .map((topic) => topic.id),
+      );
+      if (request.body.topicIds.some((id) => !availableTopicIds.has(id))) {
+        return reply.code(400).send({
+          error: "Um ou mais tópicos selecionados não estão disponíveis.",
+        });
+      }
+      const topicIds = [...request.body.topicIds].sort();
+      const selectedTopicIds = await options.planningStore.saveSelectedTopics(
+        userId,
+        activePlan.id,
+        topicIds,
+      );
+      return { selectedTopicIds };
+    },
+  );
+
   app.get(
     "/api/planning",
     { preHandler: requireAuthentication },
@@ -841,8 +955,21 @@ export async function buildApp(options: AppOptions) {
           weekStart,
         ),
       ]);
+      const selectedTopicIds =
+        activePlan.selectedTopicIds === null
+          ? null
+          : new Set(activePlan.selectedTopicIds);
+      const planContent =
+        selectedTopicIds === null
+          ? content
+          : {
+              ...content,
+              topics: content.topics.filter((topic) =>
+                selectedTopicIds.has(topic.id),
+              ),
+            };
       const plan = generateWeeklyPlan(
-        content,
+        planContent,
         activePlan.preferences,
         sessions,
         overrides,
@@ -855,7 +982,11 @@ export async function buildApp(options: AppOptions) {
           active,
           createdAt,
         })),
-        activePlan: { id: activePlan.id, name: activePlan.name },
+        activePlan: {
+          id: activePlan.id,
+          name: activePlan.name,
+          selectedTopicIds: activePlan.selectedTopicIds,
+        },
         preferences: activePlan.preferences,
         plan,
         sessions,

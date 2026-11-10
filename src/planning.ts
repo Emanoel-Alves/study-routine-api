@@ -10,6 +10,7 @@ export interface StudyPlan {
   id: string;
   name: string;
   preferences: StudyPreferences;
+  selectedTopicIds: string[] | null;
   active: boolean;
   createdAt: Date;
 }
@@ -34,9 +35,22 @@ export interface PlanOverride {
 
 export interface PlanningStore {
   listPlans(userId: string): Promise<StudyPlan[]>;
-  createPlan(userId: string, name: string): Promise<StudyPlan>;
+  createPlan(
+    userId: string,
+    name: string,
+    selectedTopicIds?: string[],
+  ): Promise<StudyPlan>;
   activatePlan(userId: string, planId: string): Promise<StudyPlan | null>;
+  deletePlan(
+    userId: string,
+    planId: string,
+  ): Promise<"deleted" | "not_found" | "default_plan" | "last_plan">;
   getActivePlan(userId: string): Promise<StudyPlan>;
+  saveSelectedTopics(
+    userId: string,
+    planId: string,
+    topicIds: string[],
+  ): Promise<string[]>;
   getPreferences(userId: string, planId: string): Promise<StudyPreferences>;
   savePreferences(
     userId: string,
@@ -88,6 +102,7 @@ interface StudyPlanDocument {
   studyDays: number[];
   minutesPerDay: number;
   targetDate: string | null;
+  selectedTopicIds?: string[] | null;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -185,6 +200,7 @@ export class MongoPlanningStore implements PlanningStore {
         planId: "default",
         name: "Meu planejamento",
         ...legacyPreferences(legacy),
+        selectedTopicIds: null,
         active: true,
         createdAt: legacy?.updatedAt ?? now,
         updatedAt: legacy?.updatedAt ?? now,
@@ -212,7 +228,11 @@ export class MongoPlanningStore implements PlanningStore {
     );
   }
 
-  async createPlan(userId: string, name: string): Promise<StudyPlan> {
+  async createPlan(
+    userId: string,
+    name: string,
+    selectedTopicIds: string[] = [],
+  ): Promise<StudyPlan> {
     const now = new Date();
     const planId = new ObjectId().toHexString();
     const document: StudyPlanDocument = {
@@ -221,6 +241,7 @@ export class MongoPlanningStore implements PlanningStore {
       planId,
       name,
       ...DEFAULT_PREFERENCES,
+      selectedTopicIds: [...selectedTopicIds],
       active: true,
       createdAt: now,
       updatedAt: now,
@@ -258,6 +279,45 @@ export class MongoPlanningStore implements PlanningStore {
     return toStudyPlan({ ...selected, active: true });
   }
 
+  async deletePlan(
+    userId: string,
+    planId: string,
+  ): Promise<"deleted" | "not_found" | "default_plan" | "last_plan"> {
+    if (planId === "default") return "default_plan";
+    const documents = await this.plans
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    const selected = documents.find((document) => document.planId === planId);
+    if (!selected) return "not_found";
+    if (documents.length <= 1) return "last_plan";
+
+    const result = await this.plans.deleteOne({ userId, planId });
+    if (result.deletedCount === 0) return "not_found";
+
+    await this.studyPlanOverrides.deleteMany({ userId, planId });
+    const state = await this.planStates.findOne({ _id: userId });
+    if (state?.activePlanId === planId) {
+      const replacement = documents.find(
+        (document) => document.planId !== planId,
+      );
+      if (!replacement)
+        throw new Error("Não foi possível encontrar outro planejamento.");
+      await this.planStates.updateOne(
+        { _id: userId },
+        {
+          $set: {
+            userId,
+            activePlanId: replacement.planId,
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+    }
+    return "deleted";
+  }
+
   async getActivePlan(userId: string): Promise<StudyPlan> {
     const plans = await this.listPlans(userId);
     const active = plans.find((plan) => plan.active);
@@ -267,6 +327,20 @@ export class MongoPlanningStore implements PlanningStore {
     const activated = await this.activatePlan(userId, fallback.id);
     if (!activated) throw new Error("Não foi possível ativar o planejamento.");
     return activated;
+  }
+
+  async saveSelectedTopics(
+    userId: string,
+    planId: string,
+    topicIds: string[],
+  ): Promise<string[]> {
+    const result = await this.plans.updateOne(
+      { userId, planId },
+      { $set: { selectedTopicIds: [...topicIds], updatedAt: new Date() } },
+    );
+    if (result.matchedCount === 0)
+      throw new Error("Planejamento não encontrado.");
+    return [...topicIds];
   }
 
   async getPreferences(
@@ -442,6 +516,7 @@ function toStudyPlan(document: StudyPlanDocument): StudyPlan {
       minutesPerDay: document.minutesPerDay,
       targetDate: document.targetDate,
     },
+    selectedTopicIds: document.selectedTopicIds ?? null,
     active: document.active,
     createdAt: document.createdAt,
   };

@@ -27,6 +27,7 @@ export class MemoryPlanningStore implements PlanningStore {
           preferences: this.copyPreferences(
             this.preferences.get(userId) ?? DEFAULT_PREFERENCES,
           ),
+          selectedTopicIds: null,
           active: true,
           createdAt: new Date(),
         },
@@ -39,13 +40,18 @@ export class MemoryPlanningStore implements PlanningStore {
     }));
   }
 
-  async createPlan(userId: string, name: string): Promise<StudyPlan> {
+  async createPlan(
+    userId: string,
+    name: string,
+    selectedTopicIds: string[] = [],
+  ): Promise<StudyPlan> {
     const plans = await this.listPlans(userId);
     for (const plan of plans) plan.active = false;
     const plan: StudyPlan = {
       id: `plan-${this.nextId++}`,
       name,
       preferences: this.copyPreferences(DEFAULT_PREFERENCES),
+      selectedTopicIds: [...selectedTopicIds],
       active: true,
       createdAt: new Date(),
     };
@@ -69,11 +75,43 @@ export class MemoryPlanningStore implements PlanningStore {
     };
   }
 
+  async deletePlan(
+    userId: string,
+    planId: string,
+  ): Promise<"deleted" | "not_found" | "default_plan" | "last_plan"> {
+    if (planId === "default") return "default_plan";
+    const plans = await this.listPlans(userId);
+    const selectedIndex = plans.findIndex((plan) => plan.id === planId);
+    if (selectedIndex < 0) return "not_found";
+    if (plans.length <= 1) return "last_plan";
+    const [selected] = plans.splice(selectedIndex, 1);
+    if (selected?.active) plans[0].active = true;
+    for (const [key, override] of this.overrides) {
+      if (override.userId === userId && override.planId === planId) {
+        this.overrides.delete(key);
+      }
+    }
+    this.plans.set(userId, plans);
+    return "deleted";
+  }
+
   async getActivePlan(userId: string): Promise<StudyPlan> {
     const plans = await this.listPlans(userId);
     const active = plans.find((plan) => plan.active);
     if (!active) throw new Error("Planejamento ativo não encontrado.");
     return { ...active, preferences: this.copyPreferences(active.preferences) };
+  }
+
+  async saveSelectedTopics(
+    userId: string,
+    planId: string,
+    topicIds: string[],
+  ): Promise<string[]> {
+    await this.listPlans(userId);
+    const plan = this.plans.get(userId)?.find((item) => item.id === planId);
+    if (!plan) throw new Error("Planejamento não encontrado.");
+    plan.selectedTopicIds = [...topicIds];
+    return [...topicIds];
   }
 
   async getPreferences(

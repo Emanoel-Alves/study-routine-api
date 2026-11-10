@@ -783,13 +783,17 @@ describe("study content API", () => {
       method: "POST",
       url: "/api/planning/plans",
       headers,
-      payload: { name: "Concurso UFC 2027" },
+      payload: {
+        name: "Concurso UFC 2027",
+        topicIds: [plannedTopic.topicId],
+      },
     });
     assert.equal(createdPlan.statusCode, 201);
     const newPlan = createdPlan.json<{
       id: string;
       name: string;
       active: boolean;
+      selectedTopicIds: string[] | null;
       preferences: {
         studyDays: number[];
         minutesPerDay: number;
@@ -800,6 +804,17 @@ describe("study content API", () => {
     assert.equal(newPlan.active, true);
     assert.equal(newPlan.preferences.minutesPerDay, 60);
     assert.deepEqual(newPlan.preferences.studyDays, [0, 1, 2, 3, 4]);
+    assert.deepEqual(newPlan.selectedTopicIds, [plannedTopic.topicId]);
+    const invalidPlanTopic = await contentApp.inject({
+      method: "POST",
+      url: "/api/planning/plans",
+      headers,
+      payload: {
+        name: "Plano inválido",
+        topicIds: ["not-a-topic-owned-by-this-user"],
+      },
+    });
+    assert.equal(invalidPlanTopic.statusCode, 400);
 
     const alternatePlanResponse = await contentApp.inject({
       method: "GET",
@@ -807,14 +822,94 @@ describe("study content API", () => {
       headers,
     });
     const alternatePlan = alternatePlanResponse.json<{
+      activePlan: { selectedTopicIds: string[] | null };
       plan: {
         days: { topics: { topicId: string; manuallyScheduled: boolean }[] }[];
         unscheduledTopics: { topicId: string; manuallyScheduled: boolean }[];
       };
     }>();
+    assert.deepEqual(alternatePlan.activePlan.selectedTopicIds, [
+      plannedTopic.topicId,
+    ]);
+    assert.equal(
+      alternatePlan.plan.days.reduce(
+        (total, day) => total + day.topics.length,
+        0,
+      ) + alternatePlan.plan.unscheduledTopics.length,
+      1,
+    );
+
+    const clearedTopicSelection = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/topics",
+      headers,
+      payload: { topicIds: [] },
+    });
+    assert.equal(clearedTopicSelection.statusCode, 200);
+    assert.deepEqual(
+      clearedTopicSelection.json<{ selectedTopicIds: string[] }>()
+        .selectedTopicIds,
+      [],
+    );
+    const emptyPlanResponse = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const emptyPlan = emptyPlanResponse.json<{
+      plan: {
+        days: { topics: unknown[] }[];
+        unscheduledTopics: unknown[];
+      };
+    }>().plan;
+    assert.equal(
+      emptyPlan.days.reduce((total, day) => total + day.topics.length, 0) +
+        emptyPlan.unscheduledTopics.length,
+      0,
+    );
+
+    const savedTopicSelection = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/topics",
+      headers,
+      payload: { topicIds: [plannedTopic.topicId] },
+    });
+    assert.equal(savedTopicSelection.statusCode, 200);
+    assert.deepEqual(
+      savedTopicSelection.json<{ selectedTopicIds: string[] }>()
+        .selectedTopicIds,
+      [plannedTopic.topicId],
+    );
+    const invalidTopicSelection = await contentApp.inject({
+      method: "PATCH",
+      url: "/api/planning/topics",
+      headers,
+      payload: { topicIds: ["not-a-topic-owned-by-this-user"] },
+    });
+    assert.equal(invalidTopicSelection.statusCode, 400);
+
+    const filteredPlanResponse = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const filteredPlan = filteredPlanResponse.json<{
+      plan: {
+        days: { topics: { topicId: string }[] }[];
+        unscheduledTopics: { topicId: string }[];
+      };
+    }>().plan;
+    assert.deepEqual(
+      [
+        ...filteredPlan.days.flatMap((day) => day.topics),
+        ...filteredPlan.unscheduledTopics,
+      ].map((topic) => topic.topicId),
+      [plannedTopic.topicId],
+    );
+
     const alternateTopic = [
-      ...alternatePlan.plan.days.flatMap((day) => day.topics),
-      ...alternatePlan.plan.unscheduledTopics,
+      ...filteredPlan.days.flatMap((day) => day.topics),
+      ...filteredPlan.unscheduledTopics,
     ].find((topic) => topic.topicId === plannedTopic.topicId);
     assert.ok(alternateTopic);
     assert.equal(alternateTopic.manuallyScheduled, false);
@@ -945,7 +1040,11 @@ describe("study content API", () => {
       headers,
     });
     const previousPlan = previousPlanning.json<{
-      activePlan: { id: string; name: string };
+      activePlan: {
+        id: string;
+        name: string;
+        selectedTopicIds: string[] | null;
+      };
       preferences: {
         studyDays: number[];
         minutesPerDay: number;
@@ -953,6 +1052,7 @@ describe("study content API", () => {
       };
     }>();
     assert.equal(previousPlan.activePlan.id, "default");
+    assert.equal(previousPlan.activePlan.selectedTopicIds, null);
 
     const activatedNewPlan = await contentApp.inject({
       method: "PATCH",
@@ -1017,5 +1117,57 @@ describe("study content API", () => {
       headers: { authorization: `Bearer ${otherUserToken}` },
     });
     assert.equal(inaccessiblePlan.statusCode, 404);
+
+    const protectedDefault = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/plans/default",
+      headers,
+    });
+    assert.equal(protectedDefault.statusCode, 409);
+
+    const inaccessibleDelete = await contentApp.inject({
+      method: "DELETE",
+      url: `/api/planning/plans/${newPlan.id}`,
+      headers: { authorization: `Bearer ${otherUserToken}` },
+    });
+    assert.equal(inaccessibleDelete.statusCode, 404);
+
+    const activateForDeletion = await contentApp.inject({
+      method: "PATCH",
+      url: `/api/planning/plans/${newPlan.id}/activate`,
+      headers,
+    });
+    assert.equal(activateForDeletion.statusCode, 200);
+    const deleteActivePlan = await contentApp.inject({
+      method: "DELETE",
+      url: `/api/planning/plans/${newPlan.id}`,
+      headers,
+    });
+    assert.equal(deleteActivePlan.statusCode, 200);
+    assert.deepEqual(deleteActivePlan.json(), { deleted: true });
+
+    const afterPlanDeletionResponse = await contentApp.inject({
+      method: "GET",
+      url: "/api/planning",
+      headers,
+    });
+    const afterPlanDeletion = afterPlanDeletionResponse.json<{
+      plans: { id: string; active: boolean }[];
+      activePlan: { id: string };
+      sessions: { id: string }[];
+    }>();
+    assert.deepEqual(
+      afterPlanDeletion.plans.map(({ id, active }) => ({ id, active })),
+      [{ id: "default", active: true }],
+    );
+    assert.equal(afterPlanDeletion.activePlan.id, "default");
+    assert.equal(afterPlanDeletion.sessions.length, 4);
+
+    const lastPlanDeletion = await contentApp.inject({
+      method: "DELETE",
+      url: "/api/planning/plans/default",
+      headers,
+    });
+    assert.equal(lastPlanDeletion.statusCode, 409);
   });
 });
