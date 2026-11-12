@@ -84,12 +84,37 @@ export const STUDY_MATRIX: MatrixSubject[] = [
       },
       {
         name: "LAI, governo digital e dados abertos",
-        description: `${noticeTag} Lei nº 12.527/2011, Estratégia de Governo Digital 2024–2027, Decreto nº 12.069/2024, Portaria SGD/MGI nº 4.248/2024, Comitê de Governança Digital e Política de Dados Abertos.`,
+        description: `${noticeTag} Estratégia de Governo Digital 2024–2027, Decreto nº 12.069/2024, Portaria SGD/MGI nº 4.248/2024, Comitê de Governança Digital e Política de Dados Abertos. A Lei de Acesso à Informação é estudada em Legislação.`,
         estimatedMinutes: 75,
       },
       {
         name: "PDTIC e planejamento institucional de TIC",
         description: `${noticeTag} Ciclo de vida do PDTIC, Guia SISP, BSC, SWOT, BPMN, indicadores, gestão de riscos e iESGo.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Plano de Transformação Digital e dados abertos",
+        description: `${generalNoticeTag} Plano de Transformação Digital; Política de Dados Abertos do Poder Executivo Federal e Decreto nº 9.903/2019; princípios, objetivos e iniciativas da Estratégia de Governo Digital 2024–2027; composição, funções e atribuições do Comitê de Governança Digital.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Riscos institucionais e perfil iESGo da UFC",
+        description: `${generalNoticeTag} Plano de Gestão de Riscos da UFC 2023–2027; Política de Gestão de Riscos da UFC (Resolução nº 15/CONSUNI/2019); ameaça, vulnerabilidade e impacto; iESGo 2024 e avaliação de práticas ESG no setor público.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Gerenciamento de projetos: abordagens e processos",
+        description: `${generalNoticeTag} Abordagens tradicional, híbrida e ágil; projetos, programas e portfólio; PMBOK 7ª edição, processos, grupos de processos e áreas de conhecimento; PMO; Scrum Guide 2020, Lean, Kanban e gestão de riscos.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Processos de negócio, BPMN e indicadores",
+        description: `${generalNoticeTag} Gestão de processos de negócio; modelagem BPMN; análise, desenho e automação de processos; técnicas de análise e melhoria; construção e mensuração de indicadores.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "SISP: finalidade, organização e competências",
+        description: `${generalNoticeTag} Finalidade, organização e competências do Sistema de Administração dos Recursos de Tecnologia da Informação (SISP); relação com a governança e gestão de TIC nos órgãos federais.`,
         estimatedMinutes: 60,
       },
       {
@@ -162,6 +187,69 @@ export const STUDY_MATRIX: MatrixSubject[] = [
     ],
   },
   {
+    name: "Ciência de Dados e Estatística",
+    description:
+      "Análise e mineração de dados, aprendizado de máquina, linguagem natural, IA generativa, visualização e estatística conforme o conteúdo específico de Ciência de Dados do Edital UFC nº 1/2024.",
+    sources: [
+      {
+        ...noticeSource,
+        text: "Conteúdo específico de Ciência de Dados do Anexo I do Edital UFC nº 1/2024. ETL, SQL, modelagem dimensional e Big Data ficam organizados em Bancos de Dados e Engenharia de Dados, sem duplicação.",
+      },
+    ],
+    topics: [
+      {
+        name: "Mineração de dados e pré-processamento",
+        description: `${generalNoticeTag} Tarefas e técnicas de mineração de dados; escalonamento, balanceamento e estratificação; regras de associação e detecção de anomalias.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Aprendizado de máquina e clusterização",
+        description: `${generalNoticeTag} Aprendizado supervisionado, não supervisionado, por reforço e profundo; agrupamentos com K-Means, DBScan e clusterização hierárquica.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Mineração de texto e processamento de linguagem natural",
+        description: `${generalNoticeTag} Análise de sentimentos, classificação de textos e análise de tópicos; modelos recorrentes RNN/LSTM e transformers BERT/GPT.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "LLMs, fine-tuning e geração aumentada por recuperação",
+        description: `${generalNoticeTag} Modelos de linguagem de grande escala (LLM), fine-tuning, RAG e ferramentas para aplicações com LLM, como LangChain.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Tipos de análise, exploração e storytelling de dados",
+        description: `${generalNoticeTag} Análises descritiva, preditiva e prescritiva; análise exploratória, visualizações interativas e storytelling.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Ferramentas de análise e bibliotecas Python",
+        description: `${generalNoticeTag} Planilhas, Jupyter Notebook e bibliotecas pandas, numpy, matplotlib, seaborn, plotly e scikit-learn. Consultas SQL e pipelines estão em Bancos de Dados e Engenharia de Dados.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "AutoML e ferramentas para aplicações de dados e IA",
+        description: `${generalNoticeTag} AutoGluon e PyCaret; protótipos e dashboards com Streamlit, Voilà, Plotly, Gradio e Mesop; Power BI e Tableau.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "MLOps e rastreamento de experimentos",
+        description: `${generalNoticeTag} Fundamentos de MLOps e rastreamento de experimentos de aprendizado de máquina. Versionamento e CI/CD são estudados uma única vez em Desenvolvimento e Engenharia de Software.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Estatística: variáveis, séries e distribuições",
+        description: `${generalNoticeTag} Metodologia e utilização da estatística; variáveis quantitativas e qualitativas; séries estatísticas; organização e apresentação; distribuições de frequências absoluta, relativa e acumulada.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Estatística descritiva e inferencial",
+        description: `${generalNoticeTag} Média, moda, mediana, separatrizes, desvio-padrão, variância, coeficiente de variação e correlação; histogramas, curvas de frequência, boxplot e outliers; dados categorizados, intervalos de confiança e testes de hipóteses paramétricos e não paramétricos.`,
+        estimatedMinutes: 90,
+      },
+    ],
+  },
+  {
     name: "Desenvolvimento e Engenharia de Software",
     description:
       "Desenvolvimento, integração, implantação e manutenção de sistemas, combinando atribuições do Decreto com referências técnicas anteriores.",
@@ -205,6 +293,117 @@ export const STUDY_MATRIX: MatrixSubject[] = [
         name: "Arquitetura moderna, DevOps e desenvolvimento seguro",
         description: `${complementaryTag} SOLID, padrões, microsserviços, mensageria, Docker, OWASP, dependências e gestão de segredos.`,
         estimatedMinutes: 75,
+      },
+      {
+        name: "Linguagens, plataformas móveis e tipos de solução",
+        description: `${generalNoticeTag} Java versão 6 ou superior, Python e JavaScript; desenvolvimento para Android e iOS; codificação de sistemas transacionais, analíticos, mobile e APIs.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Análise estática, Clean Code e qualidade de código",
+        description: `${generalNoticeTag} Análise estática de código-fonte, práticas de Clean Code e uso do SonarQube. Padrões e reuso de software integram o ciclo de engenharia.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Testes de software, TDD, usabilidade e RPA",
+        description: `${generalNoticeTag} Conceitos, tipos e testes automatizados; testes ágeis; usabilidade; TDD; gestão do ciclo de vida de testes; automação robótica de processos (RPA).`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Agilidade, Design Thinking e metodologia de ponto de função",
+        description: `${generalNoticeTag} Scrum, Kanban, XP, Design Thinking, padrões de desenvolvimento e reuso; estimativa de software pela metodologia de ponto de função. Gestão de projetos e BPMN ficam em Governança de TI.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Engenharia de requisitos: classificação e elicitação",
+        description: `${generalNoticeTag} Classificação de requisitos; processo de Engenharia de Requisitos e técnicas de elicitação.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Gestão de configuração, Git e pipelines CI/CD",
+        description: `${generalNoticeTag} Versionamento com Git e GitLab; pipelines CI/CD com GitLab CI e Jenkins.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Inteligência artificial aplicada ao desenvolvimento",
+        description: `${generalNoticeTag} Conceitos e modelos de Inteligência Artificial e aplicações no desenvolvimento de software. Técnicas de aprendizado de máquina e LLMs estão detalhadas em Ciência de Dados e Estatística.`,
+        estimatedMinutes: 60,
+      },
+    ],
+  },
+  {
+    name: "Desenvolvimento Back-End",
+    description:
+      "Tecnologias e arquiteturas específicas de Back-End previstas para Analista de TI no Anexo I do Edital UFC nº 1/2024. Fundamentos compartilhados de engenharia, testes, métodos ágeis, segurança, dados e governança são organizados nas disciplinas correspondentes.",
+    sources: [
+      {
+        ...noticeSource,
+        text: "Conteúdo específico de Arquitetura e Desenvolvimento de Sistemas — Back-End, no Anexo I do Edital UFC nº 1/2024.",
+      },
+    ],
+    topics: [
+      {
+        name: "Arquitetura Web, interoperabilidade e serviços",
+        description: `${generalNoticeTag} Arquitetura de software e de aplicações Web; interoperabilidade, arquitetura orientada a serviços, web services e APIs; arquitetura e linguagens orientadas a objetos.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Frameworks Back-End, JVM e especificações JEE",
+        description: `${generalNoticeTag} Hibernate, Spring Boot, Django, Flask, Node.js e JQuery; JVM e especificações JEE: JPA, EJB, JSF, JMS e JTA.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Arquiteturas de serviços, hexagonal e distribuída",
+        description: `${generalNoticeTag} Arquitetura orientada a serviços e hexagonal; microsserviços, orquestração de serviços, API Gateway, containers e transações distribuídas.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Servidores Web e de aplicação",
+        description: `${generalNoticeTag} Conceitos e uso de servidores de aplicação e Web; JBoss, WildFly, Apache e Nginx.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Protocolos e formatos para integração Back-End",
+        description: `${generalNoticeTag} XML, XSLT, UDDI, REST e JSON; HTTPS, HTTP/2, gRPC e WebSockets. SSL/TLS e criptografia são estudados uma única vez em Segurança da Informação.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Portais, CMS e workflow",
+        description: `${generalNoticeTag} Sistemas de gestão de conteúdo e portais corporativos: conceitos, aplicações e workflow. Arquitetura da informação, acessibilidade, usabilidade e planejamento da interação Web são aprofundados em Desenvolvimento Front-End.`,
+        estimatedMinutes: 60,
+      },
+    ],
+  },
+  {
+    name: "Desenvolvimento Front-End e UX",
+    description:
+      "Tecnologias de interface, prototipação e experiência do usuário previstas para Arquitetura e Desenvolvimento de Sistemas — Front-End no Anexo I do Edital UFC nº 1/2024.",
+    sources: [
+      {
+        ...noticeSource,
+        text: "Conteúdo específico de Arquitetura e Desenvolvimento de Sistemas — Front-End, no Anexo I do Edital UFC nº 1/2024.",
+      },
+    ],
+    topics: [
+      {
+        name: "Tecnologias Web, frameworks e aplicações SPA/PWA",
+        description: `${generalNoticeTag} HTML, CSS, Ajax, Bootstrap, VueJS, React e Angular; padrões de Front-End, aplicações de página única (SPA) e aplicações Web progressivas (PWA).`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Design e prototipação de interfaces",
+        description: `${generalNoticeTag} Técnicas, tecnologias e ferramentas para design e prototipação de interfaces gráficas; design responsivo e adaptativo.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "UX e arquitetura da informação",
+        description: `${generalNoticeTag} Conceitos e aplicações de User Experience (UX), arquitetura da informação e desenho e planejamento da interação em aplicações Web.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Acessibilidade, usabilidade e avaliação de interfaces",
+        description: `${generalNoticeTag} Conceitos de acessibilidade e usabilidade; técnicas de teste de usabilidade de software.`,
+        estimatedMinutes: 60,
       },
     ],
   },
@@ -253,6 +452,41 @@ export const STUDY_MATRIX: MatrixSubject[] = [
         description: `${noticeTag} Scripts Bash/Python. ${complementaryTag} Automação e práticas de configuração.`,
         estimatedMinutes: 60,
       },
+      {
+        name: "Armazenamento, datacenter e tecnologias de backup",
+        description: `${generalNoticeTag} Arquitetura de datacenter; armazenamento, padrões de discos e interfaces, RAID, DAS, NAS, SAN, Fibre Channel e iSCSI; conceitos de backup, deduplicação, Information Lifecycle Management (ILM) e Bacula.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Serviços de rede, firewall e servidores",
+        description: `${generalNoticeTag} Compartilhamento SAMBA, LDAP/OpenLDAP, DNS, DHCP, FTP, CIFS e NFS; firewalls iptables, ufw e pfSense; Apache, Nginx, Traefik e HAProxy, balanceamento, proxy reverso e API Gateway; servidores PHP, Tomcat e JBoss; SMTP, POP3 e IMAP. Captive portal e controle de acesso são estudados em Segurança da Informação.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Redes corporativas, protocolos e conectividade",
+        description: `${generalNoticeTag} Modelo OSI; Ethernet, Fibre Channel, iSCSI, Wi-Fi IEEE 802.11 a/b/g/n/ac/ax, MPLS, SD-WAN e VLAN 802.1Q; VoIP, H.323 e SIP; VPN OpenVPN/WireGuard; RIP, OSPF e STP/RSTP/MSTP; DNS, FTP, NFS, Telnet, SMTP, HTTP, LDAP, DHCP, IPsec, SSH, SNMP e NAT; endereçamento IPv4/IPv6.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Computação em nuvem e virtualização",
+        description: `${generalNoticeTag} Benefícios de nuvem, alta disponibilidade, escalabilidade, elasticidade, agilidade e recuperação de desastres; nuvens públicas/privadas, IaaS/PaaS/SaaS e workloads; regiões, zonas de disponibilidade, subscrições, grupos de gestão e recursos; hipervisores tipo 1/2 e modos HVM, PV, PVHVM e PVH; Xen/XenServer, XCP-ng, VMware e Xen Orchestra; clustering, failover, balanceamento e replicação de estado.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Containers, orquestração e infraestrutura como código",
+        description: `${generalNoticeTag} Docker, Docker Swarm e Kubernetes; conceitos e orquestração de containers; provisionamento e gestão de configuração com Ansible e Terraform. Conceitos de microsserviços e arquitetura ficam em Desenvolvimento Back-End.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Monitoramento e gerenciamento de ativos de TI",
+        description: `${generalNoticeTag} Monitoramento de redes, servidores e serviços; detecção de problemas e otimização de desempenho; SNMP, MIB, RMON e NetFlow; ferramentas Zabbix e Cacti.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Operação de bancos de dados em infraestrutura",
+        description: `${generalNoticeTag} Gestão e operação de SGBDs: MySQL, MariaDB, Oracle 11g, Microsoft SQL Server e PostgreSQL. Modelagem, SQL e bancos NoSQL permanecem em Bancos de Dados e Engenharia de Dados.`,
+        estimatedMinutes: 75,
+      },
     ],
   },
   {
@@ -266,7 +500,7 @@ export const STUDY_MATRIX: MatrixSubject[] = [
       },
       {
         ...noticeSource,
-        text: "Conteúdo anterior de Segurança da Informação: ISO/IEC 27001:2022, 27002:2022, 27005:2023, LAI, Marco Civil, LGPD e normas nacionais.",
+        text: "Conteúdo anterior de Segurança da Informação: ISO/IEC 27001:2022, 27002:2022, 27005:2023 e normas nacionais de segurança cibernética. LAI, Marco Civil e LGPD são estudados em Legislação.",
       },
     ],
     topics: [
@@ -286,19 +520,49 @@ export const STUDY_MATRIX: MatrixSubject[] = [
         estimatedMinutes: 75,
       },
       {
-        name: "LGPD e proteção de dados pessoais",
-        description: `${decreeTag} A matriz do documento relaciona as atribuições de proteção a dados à LGPD: princípios, bases legais, direitos, agentes, segurança e incidentes. O Decreto remete à proteção de dados institucionais, sem listar esses subtópicos.`,
-        estimatedMinutes: 90,
-      },
-      {
-        name: "LAI, Marco Civil e segurança no setor público",
-        description: `${noticeTag} LAI, Marco Civil da Internet e normas/estratégias nacionais de segurança indicadas no conteúdo anterior.`,
-        estimatedMinutes: 75,
-      },
-      {
         name: "Criptografia, hardening e resposta a incidentes",
         description: `${complementaryTag} Criptografia, gestão de vulnerabilidades, hardening, logs, resposta, continuidade e recuperação de desastres.`,
         estimatedMinutes: 75,
+      },
+      {
+        name: "Criptografia, protocolos e infraestrutura de chaves públicas",
+        description: `${generalNoticeTag} Cifras simétricas e assimétricas, hash, cifras de bloco e fluxo e modos de operação citados no edital (ECB, CBC, CBF, OBF e CTR); AES, 3DES, Blowfish, IDEA, RC4, RC6, Diffie-Hellman, RSA, ECC, MD4, MD5, SHA-1, SHA-2 e WHIRLPOOL; ataques de força bruta, dicionário, frequência, criptoanálise, colisão e aniversário; SSL/TLS, PKI, certificados autoassinados ou emitidos por autoridade certificadora, assinatura digital e esteganografia.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Segurança de redes, perímetro e comunicações",
+        description: `${generalNoticeTag} Segmentação, DMZ, VLAN, ameaças de spoofing, firewalls stateless, SPI (Stateful Packet Inspection), DPI (Deep Packet Inspection) e UTM (Unified Threat Management), netfilter, iptables e fwbuilder; IDS/IPS (detecção e prevenção de intrusão) e Snort; análise de tráfego nas camadas de enlace, rede e aplicação com iptraf, tcpdump e Wireshark; VPN, encapsulamento, autenticação, criptografia e topologias com PPTP/L2TP/IPsec/OpenVPN; ataques a redes Wi-Fi, WEP/WPA/WPA2/WPA3 e IEEE 802.1X.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Autenticação e modelos de controle de acesso",
+        description: `${generalNoticeTag} Identificação, autenticação e autorização; menor privilégio, necessidade de conhecer e segregação de funções; modelos MAC, DAC e RBAC; métodos administrativos, físicos, técnicos e em camadas; controles centralizados/descentralizados, baseados em regras, interface, matriz, conteúdo ou contexto; PAP, CHAP, EAP, NTLM, Kerberos, RADIUS e TACACS.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Autenticação multifator e federação de identidade",
+        description: `${generalNoticeTag} Autenticação de dois fatores/MFA; OAuth 2, JWT, SSO, OpenID Connect e SAML.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Normas e legislação de segurança cibernética no setor público",
+        description: `${generalNoticeTag} Decreto nº 10.222/2020 (e-Ciber), Decreto nº 10.748/2021 (Rede Federal de Gestão de Incidentes Cibernéticos), Decreto nº 11.856/2023 (Política Nacional de Cibersegurança); IN GSI/PR nº 01/2020 e IN nº 03, 05 e 06/2021. LAI, Marco Civil e LGPD ficam consolidados na disciplina Legislação.`,
+        estimatedMinutes: 75,
+      },
+      {
+        name: "Procedimentos e gestão da segurança da informação",
+        description: `${generalNoticeTag} Políticas e procedimentos de segurança; conceitos gerais de gerenciamento e implementação de controles de segurança da informação.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Segurança de aplicações, OWASP e desenvolvimento seguro",
+        description: `${generalNoticeTag} Programação segura e revisão de código; controles e testes de segurança Web; injeções Command/SQL/LDAP, XSS, sequestro de sessão, referência insegura a objetos, CSRF e armazenamento inseguro de dados criptografados; segurança em aplicações Java, Python e PHP; SDL, SAST (Static Application Security Testing), DAST (Dynamic Application Security Testing), OWASP Top 10:2021, CIS Controls v8 e NIST CSF 2.0.`,
+        estimatedMinutes: 90,
+      },
+      {
+        name: "Incidentes, malware, testes de invasão e forense",
+        description: `${generalNoticeTag} Tratamento e resposta a incidentes (CERT); vírus, cavalos de Troia, spyware, backdoors, keyloggers e worms; testes de invasão e forense computacional; hardening de servidores Linux/Windows (Windows Server 2016, 2019 e 2022) e estações Linux/Windows 7, 10 e 11; auditoria de logs com Syslog e Microsoft Event Viewer; segurança de SSH, LDAP, Apache, JBoss, Tomcat, Postfix, Squid, BIND, MySQL e PostgreSQL.`,
+        estimatedMinutes: 90,
       },
     ],
   },
@@ -432,6 +696,16 @@ export const STUDY_MATRIX: MatrixSubject[] = [
         name: "Lei nº 12.527/2011 — Lei de Acesso à Informação",
         description: `${generalNoticeTag} Transparência pública; acesso e restrições à informação.`,
         estimatedMinutes: 60,
+      },
+      {
+        name: "LAI: transparência, prazos e recursos",
+        description: `${generalNoticeTag} Princípios da Lei de Acesso à Informação; transparência ativa e passiva; prazos de resposta e instâncias recursais.`,
+        estimatedMinutes: 60,
+      },
+      {
+        name: "Lei nº 12.965/2014 — Marco Civil da Internet",
+        description: `${generalNoticeTag} Princípios, garantias, direitos e deveres para o uso da Internet no Brasil.`,
+        estimatedMinutes: 75,
       },
       {
         name: "Lei nº 13.709/2018 — LGPD",

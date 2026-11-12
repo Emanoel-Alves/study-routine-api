@@ -631,8 +631,8 @@ describe("study content API", () => {
       subjectsInMatrix: number;
       topicsInMatrix: number;
     }>();
-    assert.equal(firstResult.subjectsInMatrix, 8);
-    assert.equal(firstResult.topicsInMatrix, 62);
+    assert.equal(firstResult.subjectsInMatrix, 11);
+    assert.equal(firstResult.topicsInMatrix, 109);
     assert.equal(firstResult.subjectsCreated, firstResult.subjectsInMatrix);
     assert.equal(firstResult.topicsCreated, firstResult.topicsInMatrix);
     assert.ok(firstResult.materialsCreated >= firstResult.subjectsInMatrix);
@@ -706,6 +706,46 @@ describe("study content API", () => {
       topics: { subjectId: string; name: string; description: string }[];
       materials: { subjectId: string; url: string }[];
     }>();
+    assert.equal(importedContent.subjects.length, 11);
+    assert.equal(importedContent.topics.length, 109);
+    const backEnd = importedContent.subjects.find(
+      (subject) => subject.name === "Desenvolvimento Back-End",
+    );
+    const frontEnd = importedContent.subjects.find(
+      (subject) => subject.name === "Desenvolvimento Front-End e UX",
+    );
+    const dataScience = importedContent.subjects.find(
+      (subject) => subject.name === "Ciência de Dados e Estatística",
+    );
+    assert.ok(backEnd);
+    assert.ok(frontEnd);
+    assert.ok(dataScience);
+    assert.ok(
+      importedContent.topics.some(
+        (topic) =>
+          topic.subjectId === backEnd.id &&
+          topic.name === "Frameworks Back-End, JVM e especificações JEE" &&
+          /Spring Boot/.test(topic.description),
+      ),
+    );
+    assert.ok(
+      importedContent.topics.some(
+        (topic) =>
+          topic.subjectId === frontEnd.id &&
+          topic.name === "Tecnologias Web, frameworks e aplicações SPA/PWA" &&
+          /Angular/.test(topic.description),
+      ),
+    );
+    assert.ok(
+      importedContent.topics.some(
+        (topic) =>
+          topic.subjectId === dataScience.id &&
+          topic.name === "Estatística descritiva e inferencial" &&
+          /testes de hipóteses paramétricos e não paramétricos/.test(
+            topic.description,
+          ),
+      ),
+    );
     const portuguese = importedContent.subjects.find(
       (subject) => subject.name === "Língua Portuguesa",
     );
@@ -723,7 +763,7 @@ describe("study content API", () => {
       (topic) => topic.subjectId === legislation.id,
     );
     assert.equal(portugueseTopics.length, 9);
-    assert.equal(legislationTopics.length, 14);
+    assert.equal(legislationTopics.length, 16);
     assert.ok(
       portugueseTopics.some(
         (topic) =>
@@ -736,6 +776,16 @@ describe("study content API", () => {
         (topic) =>
           topic.name.includes("8.112/1990") &&
           topic.description.includes("processo administrativo disciplinar"),
+      ),
+    );
+    assert.ok(
+      legislationTopics.some((topic) => topic.name.includes("12.965/2014")),
+    );
+    assert.ok(
+      legislationTopics.some(
+        (topic) =>
+          topic.name === "LAI: transparência, prazos e recursos" &&
+          /transparência ativa e passiva/.test(topic.description),
       ),
     );
     assert.ok(
